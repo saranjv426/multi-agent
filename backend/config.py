@@ -1,0 +1,94 @@
+"""
+Configuration management for the Roof Design Validation System
+Handles environment variables, API keys, and application settings
+"""
+
+import os
+from typing import Optional
+from dataclasses import dataclass
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
+@dataclass
+class Config:
+    """Application configuration settings"""
+    
+    # Navigator AI Configuration
+    navigator_api_key: str
+    navigator_base_url: str = "https://api.ai.it.ufl.edu"
+    
+    # Server Configuration
+    host: str = "127.0.0.1"
+    port: int = 8000
+    debug: bool = True
+    environment: str = "development"
+    
+    # CORS Configuration
+    allowed_origins: list = None
+    
+    # Cost Tracking
+    track_api_costs: bool = True
+    log_level: str = "INFO"
+    
+    def __post_init__(self):
+        """Validate configuration after initialization"""
+        if not self.navigator_api_key:
+            raise ValueError("NAVIGATOR_API_KEY is required but not set")
+        
+        if self.allowed_origins is None:
+            self.allowed_origins = [
+                "http://localhost:3000",
+                "http://127.0.0.1:3000"
+            ]
+
+def get_config() -> Config:
+    """
+    Load configuration from environment variables
+    
+    Returns:
+        Config: Application configuration object
+        
+    Raises:
+        ValueError: If required environment variables are missing
+    """
+    
+    # Required configuration
+    navigator_api_key = os.getenv("NAVIGATOR_API_KEY")
+    if not navigator_api_key:
+        raise ValueError(
+            "NAVIGATOR_API_KEY environment variable is required. "
+            "Please set it in your .env file or environment."
+        )
+    
+    # Optional configuration with defaults
+    config = Config(
+        navigator_api_key=navigator_api_key,
+        navigator_base_url=os.getenv("NAVIGATOR_BASE_URL", "https://api.ai.it.ufl.edu"),
+        host=os.getenv("HOST", "0.0.0.0"),  # Changed for cloud deployment
+        port=int(os.getenv("PORT", "8000")),
+        debug=os.getenv("DEBUG", "false").lower() == "true",  # Changed default for production
+        environment=os.getenv("ENVIRONMENT", "production"),  # Changed default
+        track_api_costs=os.getenv("TRACK_API_COSTS", "true").lower() == "true",
+        log_level=os.getenv("LOG_LEVEL", "INFO")
+    )
+    
+    # Parse allowed origins - more flexible for cloud deployment
+    origins_str = os.getenv("ALLOWED_ORIGINS", "")
+    if origins_str:
+        config.allowed_origins = [origin.strip() for origin in origins_str.split(",")]
+    else:
+        # Default origins including common cloud platforms
+        config.allowed_origins = [
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+            "https://*.vercel.app",
+            "https://*.netlify.app",
+            "*"  # For demo purposes - you can restrict this later
+        ]
+    
+    return config
+
+# Global configuration instance
+settings = get_config()

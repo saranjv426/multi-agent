@@ -1,0 +1,202 @@
+ROOF DESIGN VALIDATION SYSTEM - INSTALLATION & SETUP GUIDE
+
+STEP 1: INSTALL PYTHON & CONDA
+
+1.1 Download and Install Miniconda (recommended) or Anaconda:
+   - Visit: https://docs.conda.io/en/latest/miniconda.html
+   - Download the installer for your operating system
+   - Run the installer and follow the setup wizard
+   - Make sure to check "Add conda to PATH" during installation
+
+1.2 Verify Installation:
+   Open a terminal/command prompt and type:
+   
+   conda --version
+   
+   You should see a version number (e.g., conda 23.x.x)
+
+STEP 2: INSTALL NODE.JS
+
+2.1 Download Node.js:
+   - Visit: https://nodejs.org/
+   - Download the LTS version (recommended)
+   - Run the installer and follow the setup wizard
+
+2.2 Verify Installation:
+   Open a terminal/command prompt and type:
+   
+   node --version
+   npm --version
+   
+   You should see version numbers for both
+
+STEP 3: DOWNLOAD THE APPLICATION
+===============================
+
+3.1 Extract the Application:
+   - Extract the MAS folder to your desired location
+   - Example: C:\Users\YourName\Desktop\MAS (Windows)
+   - Example: /Users/YourName/Desktop/MAS (macOS)
+   - Example: /home/yourname/Desktop/MAS (Linux)
+
+3.2 Navigate to the Application:
+   Open terminal/command prompt and navigate to the MAS folder:
+   
+   cd /path/to/MAS
+   
+   (Replace /path/to/MAS with your actual path)
+
+STEP 4: SET UP CONDA ENVIRONMENT
+
+4.1 Create Conda Environment:
+   In the terminal, run:
+   
+   conda create -n agent_env python=3.9 -y
+   
+4.2 Activate Environment:
+   
+   conda activate agent_env
+   
+   Note: You'll need to run this command every time you open a new terminal
+
+4.3 Verify Environment:
+   You should see (agent_env) at the beginning of your terminal prompt
+
+STEP 5: INSTALL BACKEND DEPENDENCIES
+
+5.1 Navigate to Backend Directory:
+   
+   cd backend
+   
+5.2 Install Python Dependencies:
+   
+   conda activate agent_env
+   conda install --file requirements.txt -c conda-forge
+   
+   This will install all required Python packages including FastAPI, OpenAI, etc.
+
+STEP 6: CONFIGURE BACKEND ENVIRONMENT
+
+6.1 Create Environment File:
+   In the backend directory, create a file named ".env" with the following content:
+   (Replace YOUR_OPENAI_API_KEY_HERE with your actual API key from Step 3)
+   
+   OPENAI_API_KEY=YOUR_OPENAI_API_KEY_HERE
+   HOST=127.0.0.1
+   PORT=8000
+   DEBUG=true
+   ENVIRONMENT=development
+   ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+   TRACK_API_COSTS=true
+   LOG_LEVEL=INFO
+
+6.2 Save the File:
+   - On Windows: Save as ".env" (with quotes to include the dot)
+   - On macOS/Linux: Save as .env
+
+STEP 7: SET UP FRONTEND
+
+7.1 Open New Terminal:
+   Open a second terminal/command prompt window
+
+7.2 Navigate to Frontend Directory:
+   
+   cd /path/to/MAS/frontend
+   
+   (Replace /path/to/MAS with your actual path)
+
+7.3 Install Frontend Dependencies:
+   
+   npm install
+   
+   This will download and install all required JavaScript packages
+
+7.4 Create Frontend Environment File:
+   In the frontend directory, create a file named ".env.local" with:
+   
+   NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
+
+STEP 8: START THE APPLICATION
+
+You need to run both backend and frontend simultaneously.
+
+8.1 Start Backend Server:
+   In the first terminal (make sure you're in the backend directory and conda environment is activated):
+   
+   conda activate agent_env
+   cd backend
+   python start.py
+   
+   You should see:
+   - "Server running on http://127.0.0.1:8000"
+   - "API documentation available at http://127.0.0.1:8000/docs"
+
+8.2 Start Frontend Server:
+   In the second terminal (make sure you're in the frontend directory):
+   
+   cd frontend
+   node start.js
+   
+   You should see:
+   - "Frontend will be available at: http://localhost:3000"
+
+STEP 9: ACCESS THE APPLICATION
+
+9.1 Open Your Web Browser:
+   Go to: http://localhost:3000
+   
+   You should see the Roof Design Validation System homepage
+
+9.2 Test the System:
+   - Click "Upload Design" or similar button
+   - Upload a roof design image (PNG, JPG, or PDF)
+   - Wait for the AI analysis to complete
+   - Download the compliance report
+
+TROUBLESHOOTING
+==============
+
+Problem: "conda: command not found"
+Solution: Restart your terminal after installing conda, or manually add conda to PATH
+
+Problem: "python: command not found" 
+Solution: Use "python3" instead of "python", or make sure conda environment is activated
+
+Problem: "npm: command not found"
+Solution: Restart terminal after installing Node.js, or reinstall Node.js
+
+Problem: Backend fails to start with "OpenAI API key" error
+Solution: Double-check your .env file has the correct API key without quotes
+
+Problem: Frontend can't connect to backend
+Solution: Make sure backend is running first, check if ports 3000 and 8000 are available
+
+Problem: "Permission denied" errors
+Solution: Run terminal as administrator (Windows) or use sudo (macOS/Linux)
+
+
+STOPPING THE APPLICATION
+========================
+
+To stop the application:
+1. In both terminal windows, press Ctrl+C
+2. Close the terminal windows
+3. Close your web browser
+
+DAILY USAGE
+===========
+
+After initial setup, to use the system daily:
+
+1. Open terminal and activate environment:
+   conda activate agent_env
+
+2. Start backend:
+   cd /path/to/MAS/backend
+   python start.py
+
+3. Open second terminal and start frontend:
+   cd /path/to/MAS/frontend
+   node start.js
+
+4. Open browser and go to: http://localhost:3000

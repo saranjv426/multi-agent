@@ -1,0 +1,319 @@
+"""
+PDF Report Generator
+Creates professional compliance reports from validation results
+"""
+
+from reportlab.lib.pagesizes import letter, A4
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
+from reportlab.lib import colors
+from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_JUSTIFY
+from datetime import datetime
+import io
+from typing import Dict, Any, Optional
+
+class ComplianceReportGenerator:
+    """
+    Generate professional PDF compliance reports for roof design validation
+    """
+    
+    def __init__(self):
+        self.styles = getSampleStyleSheet()
+        self._setup_custom_styles()
+    
+    def _setup_custom_styles(self):
+        """Set up custom styles for the report"""
+        
+        # Title style
+        self.styles.add(ParagraphStyle(
+            name='CustomTitle',
+            parent=self.styles['Heading1'],
+            fontSize=24,
+            spaceAfter=30,
+            alignment=TA_CENTER,
+            textColor=colors.Color(0.1, 0.3, 0.6)  # Primary blue
+        ))
+        
+        # Section header style
+        self.styles.add(ParagraphStyle(
+            name='SectionHeader',
+            parent=self.styles['Heading2'],
+            fontSize=16,
+            spaceBefore=20,
+            spaceAfter=12,
+            textColor=colors.Color(0.2, 0.2, 0.2),
+            borderWidth=1,
+            borderColor=colors.Color(0.8, 0.8, 0.8),
+            borderPadding=5
+        ))
+        
+        # Compliance status styles
+        self.styles.add(ParagraphStyle(
+            name='Compliant',
+            parent=self.styles['Normal'],
+            fontSize=12,
+            textColor=colors.green,
+            fontName='Helvetica-Bold'
+        ))
+        
+        self.styles.add(ParagraphStyle(
+            name='NonCompliant',
+            parent=self.styles['Normal'],
+            fontSize=12,
+            textColor=colors.red,
+            fontName='Helvetica-Bold'
+        ))
+        
+        self.styles.add(ParagraphStyle(
+            name='Review',
+            parent=self.styles['Normal'],
+            fontSize=12,
+            textColor=colors.orange,
+            fontName='Helvetica-Bold'
+        ))
+    
+    def generate_report(self, 
+                       validation_data: Dict[str, Any], 
+                       filename: Optional[str] = None,
+                       project_info: Optional[Dict] = None) -> bytes:
+        """
+        Generate a complete compliance report PDF
+        
+        Args:
+            validation_data: Results from roof validation process
+            filename: Optional custom filename
+            project_info: Optional project metadata
+            
+        Returns:
+            bytes: PDF file content
+        """
+        
+        # Create PDF buffer
+        buffer = io.BytesIO()
+        
+        # Create document
+        doc = SimpleDocTemplate(
+            buffer,
+            pagesize=letter,
+            rightMargin=72,
+            leftMargin=72,
+            topMargin=72,
+            bottomMargin=18
+        )
+        
+        # Build story
+        story = []
+        
+        # Header
+        story.extend(self._build_header(project_info))
+        
+        # Executive Summary
+        story.extend(self._build_executive_summary(validation_data))
+        
+        # Design Analysis Section
+        story.extend(self._build_design_analysis(validation_data))
+        
+        # Code Validation Section  
+        story.extend(self._build_code_validation(validation_data))
+        
+        # Recommendations Section
+        story.extend(self._build_recommendations(validation_data))
+        
+        # Footer
+        story.extend(self._build_footer(validation_data))
+        
+        # Build PDF
+        doc.build(story)
+        
+        # Get PDF bytes
+        pdf_bytes = buffer.getvalue()
+        buffer.close()
+        
+        return pdf_bytes
+    
+    def _build_header(self, project_info: Optional[Dict] = None) -> list:
+        """Build report header section"""
+        story = []
+        
+        # Title
+        story.append(Paragraph("ROOF DESIGN COMPLIANCE REPORT", self.styles['CustomTitle']))
+        story.append(Spacer(1, 20))
+        
+        # Project info table
+        if project_info:
+            data = [
+                ['Project Name:', project_info.get('name', 'N/A')],
+                ['Location:', project_info.get('location', 'N/A')], 
+                ['Architect:', project_info.get('architect', 'N/A')],
+                ['Report Date:', datetime.now().strftime('%B %d, %Y')],
+                ['Report ID:', f"RV-{datetime.now().strftime('%Y%m%d-%H%M%S')}"]
+            ]
+        else:
+            data = [
+                ['Report Date:', datetime.now().strftime('%B %d, %Y')],
+                ['Report ID:', f"RV-{datetime.now().strftime('%Y%m%d-%H%M%S')}"],
+                ['Generated By:', 'RoofValidator AI System'],
+                ['Code Reference:', 'Florida Building Code 2023']
+            ]
+        
+        table = Table(data, colWidths=[2*inch, 4*inch])
+        table.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+            ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 0), (-1, -1), 10),
+            ('GRID', (0, 0), (-1, -1), 1, colors.lightgrey),
+            ('BACKGROUND', (0, 0), (0, -1), colors.Color(0.9, 0.9, 0.9))
+        ]))
+        
+        story.append(table)
+        story.append(Spacer(1, 30))
+        
+        return story
+    
+    def _build_executive_summary(self, validation_data: Dict[str, Any]) -> list:
+        """Build executive summary section"""
+        story = []
+        
+        story.append(Paragraph("EXECUTIVE SUMMARY", self.styles['SectionHeader']))
+        
+        # Overall compliance status
+        overall_status = self._determine_overall_status(validation_data)
+        status_style = self._get_status_style(overall_status)
+        
+        story.append(Paragraph(f"<b>Overall Compliance Status:</b> <font color='{self._get_status_color(overall_status)}'>{overall_status}</font>", self.styles['Normal']))
+        story.append(Spacer(1, 12))
+        
+        # Summary text
+        summary_text = self._generate_summary_text(validation_data)
+        story.append(Paragraph(summary_text, self.styles['Normal']))
+        story.append(Spacer(1, 20))
+        
+        return story
+    
+    def _build_design_analysis(self, validation_data: Dict[str, Any]) -> list:
+        """Build design analysis section"""
+        story = []
+        
+        story.append(Paragraph("DESIGN ANALYSIS", self.styles['SectionHeader']))
+        
+        # Add analysis content
+        if 'analysis' in validation_data:
+            analysis_text = validation_data['analysis']
+            # Split into paragraphs for better formatting
+            paragraphs = analysis_text.split('\n\n')
+            for para in paragraphs:
+                if para.strip():
+                    story.append(Paragraph(para.strip(), self.styles['Normal']))
+                    story.append(Spacer(1, 12))
+        
+        story.append(Spacer(1, 20))
+        return story
+    
+    def _build_code_validation(self, validation_data: Dict[str, Any]) -> list:
+        """Build code validation section"""
+        story = []
+        
+        story.append(Paragraph("BUILDING CODE VALIDATION", self.styles['SectionHeader']))
+        
+        # Add validation report content
+        if 'validation_report' in validation_data:
+            validation_text = validation_data['validation_report']
+            # Split into sections for better formatting
+            sections = validation_text.split('\n\n')
+            for section in sections:
+                if section.strip():
+                    story.append(Paragraph(section.strip(), self.styles['Normal']))
+                    story.append(Spacer(1, 12))
+        
+        story.append(Spacer(1, 20))
+        return story
+    
+    def _build_recommendations(self, validation_data: Dict[str, Any]) -> list:
+        """Build recommendations section"""
+        story = []
+        
+        story.append(Paragraph("RECOMMENDATIONS", self.styles['SectionHeader']))
+        
+        # Generate recommendations based on validation results
+        recommendations = self._generate_recommendations(validation_data)
+        
+        for i, rec in enumerate(recommendations, 1):
+            story.append(Paragraph(f"{i}. {rec}", self.styles['Normal']))
+            story.append(Spacer(1, 8))
+        
+        story.append(Spacer(1, 20))
+        return story
+    
+    def _build_footer(self, validation_data: Dict[str, Any]) -> list:
+        """Build report footer"""
+        story = []
+        
+        story.append(Paragraph("DISCLAIMER", self.styles['SectionHeader']))
+        
+        disclaimer = """
+        This report is generated by an AI-powered building code compliance system. 
+        While every effort has been made to ensure accuracy, this report should be 
+        reviewed by a licensed professional engineer or architect before submission 
+        for permits. The AI system is based on the Florida Building Code 2023 edition 
+        and may not reflect the most current code amendments or local jurisdictional requirements.
+        """
+        
+        story.append(Paragraph(disclaimer, self.styles['Normal']))
+        
+        # Processing metadata
+        if 'processing_time' in validation_data:
+            story.append(Spacer(1, 20))
+            story.append(Paragraph(f"Report generated in {validation_data['processing_time']:.2f} seconds", 
+                                 self.styles['Normal']))
+        
+        return story
+    
+    def _determine_overall_status(self, validation_data: Dict[str, Any]) -> str:
+        """Determine overall compliance status"""
+        # This would analyze the validation results to determine overall status
+        # For now, return a default status
+        if validation_data.get('success', False):
+            return "COMPLIANT"
+        else:
+            return "NON-COMPLIANT"
+    
+    def _get_status_style(self, status: str) -> str:
+        """Get appropriate style for status"""
+        status_upper = status.upper()
+        if 'COMPLIANT' in status_upper and 'NON' not in status_upper:
+            return 'Compliant'
+        elif 'NON-COMPLIANT' in status_upper:
+            return 'NonCompliant'
+        else:
+            return 'Review'
+    
+    def _get_status_color(self, status: str) -> str:
+        """Get color for status text"""
+        status_upper = status.upper()
+        if 'COMPLIANT' in status_upper and 'NON' not in status_upper:
+            return 'green'
+        elif 'NON-COMPLIANT' in status_upper:
+            return 'red'
+        else:
+            return 'orange'
+    
+    def _generate_summary_text(self, validation_data: Dict[str, Any]) -> str:
+        """Generate executive summary text"""
+        return """
+        This report presents the automated building code compliance analysis for the submitted 
+        roof design. The analysis was performed using advanced AI technology that examines 
+        structural specifications against Florida Building Code requirements. All findings 
+        and recommendations should be reviewed by qualified professionals.
+        """
+    
+    def _generate_recommendations(self, validation_data: Dict[str, Any]) -> list:
+        """Generate recommendations based on validation results"""
+        return [
+            "Review all flagged items with a licensed structural engineer",
+            "Verify material specifications meet local building code requirements", 
+            "Ensure all connections and fastening schedules are properly detailed",
+            "Submit revised drawings addressing any non-compliant items",
+            "Schedule follow-up review after implementing recommendations"
+        ]

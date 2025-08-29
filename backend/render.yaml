@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: roofvalidator-api
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main_cloud:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: DEBUG
+        value: false
+      - key: LOG_LEVEL
+        value: INFO
+      - key: HOST
+        value: 0.0.0.0
