@@ -47,50 +47,55 @@ class BuildingCodeValidator:
             logger.info("Starting building code validation with Mistral Small 3.1...")
             
             validation_prompt = f"""
-You are a certified building code compliance expert specializing in Florida Building Code (FBC) Chapter 8 (Roof-Ceiling Construction) and Chapter 9 (Wind Resistance). 
+ROLE:
+You are a certified building code compliance expert for Florida Building Code – Residential (FBC-R) 2023, focused on Chapter 8 (Roof-Ceiling Construction) and Chapter 9 (Roof Assemblies/Wind). Task: validate the roof design below for code compliance.
 
-TASK: Perform comprehensive compliance validation of the roof design specifications below.
-
-DESIGN SPECIFICATIONS TO VALIDATE:
+INPUT (design to validate):
 {agent1_output}
 
-COMPLIANCE VALIDATION REQUIREMENTS:
-Systematically check each element against current Florida Building Code requirements:
+STRICT BEHAVIOR:
+- Work only from the provided specs; do not assume typical values.
+- STATUS rules per element:
+  COMPLIANT = meets cited FBC-R requirement(s).
+  NON-COMPLIANT = violates cited requirement(s).
+  REQUIRES REVIEW = element present but info is insufficient/ambiguous/contradictory OR exact code/table cannot be confirmed.
+  MISSING = element not mentioned at all.
+  N/A = not applicable per FBC-R (must cite why).
+- Always cite precise FBC-R section/table (e.g., “FBC-R 2023 R803.2.1; Table R802.4.1(1)”). Do not fabricate citations.
+- Brief analysis must quote key values from the input (e.g., “7/16 in OSB @ 24 in o.c., nails 8d @ 6/12 in.”) before judging status.
 
-**1. SHEATHING COMPLIANCE (FBC Section 8.1-8.2):**
-- Check sheathing type and thickness against Table 803.2
-- Verify edge support requirements (Section 803.2.1)
-- Validate fastening to framing (Table 803.2.1)
-- Confirm span ratings and load capacities
+CRITICALITY MAP (governs OVERALL STATUS):
+CRITICAL: Wind Resistance; Sheathing; Rafter Spacing/Spans; Fastening/Connections.
+SIGNIFICANT: Underlayment (PROMOTE to CRITICAL if HVHZ or product approval/listing requires specific underlayment).
+MINOR: Insulation (PROMOTE to SIGNIFICANT if condensation/ventilation control affects compliance).
 
-**2. RAFTER SPACING AND SPANS (FBC Section 8.3):**
-- Verify rafter spacing against Table 802.4
-- Check span limits for lumber species and grade (Table 802.4.1)
-- Validate size vs. span relationships
-- Confirm load path continuity
+OVERALL STATUS ALGORITHM (apply in order):
+1) If any CRITICAL is NON-COMPLIANT → OVERALL = NON-COMPLIANT.
+2) Else if any CRITICAL is MISSING → OVERALL = MISSING.
+3) Else if any CRITICAL is REQUIRES REVIEW → OVERALL = REQUIRES REVIEW.
+4) Else if any SIGNIFICANT is NON-COMPLIANT:
+     - If ≥2 SIGNIFICANT non-compliances → OVERALL = NON-COMPLIANT
+     - Else → OVERALL = REQUIRES REVIEW
+5) Else if any SIGNIFICANT is MISSING → OVERALL = MISSING.
+6) Else if any SIGNIFICANT is REQUIRES REVIEW → OVERALL = REQUIRES REVIEW.
+7) Else if any MINOR is NON-COMPLIANT → OVERALL = REQUIRES REVIEW.
+8) Else if only MINOR are MISSING/REQUIRES REVIEW and all others are COMPLIANT/N/A → OVERALL = COMPLIANT.
 
-**3. FASTENING REQUIREMENTS (FBC Section 8.4):**
-- Check nail/screw specifications against Table 803.2.1
-- Verify fastening schedules and patterns
-- Confirm edge distance and spacing requirements
-- Validate connection capacities
+MISSING vs REQUIRES REVIEW DECISION:
+- If an element is not mentioned at all → MISSING.
+- If mentioned but key data is absent/unclear/contradictory (e.g., species/grade not given for span check; wind speed not stated; citation uncertain) → REQUIRES REVIEW with reason (“missing rafter grade”, “wind parameters not provided”, “exact table confirmation needed”).
+- If wind parameters/site (Vult, exposure, HVHZ) are not present, mark Wind Resistance as MISSING.
 
-**4. WIND RESISTANCE (FBC Chapter 9):**
-- Check wind load design requirements (Section 902)
-- Verify uplift resistance provisions (Section 903)
-- Confirm hurricane clip/strap requirements if applicable
-- Validate high wind zone requirements (if applicable)
+VALIDATION CHECKLIST (cite exact sections/tables):
+- Sheathing (R803.*; Tables R803.* / fastening tables)
+- Rafter Spacing/Spans (R802.* span tables)
+- Fastening/Connections (R8xx tables/sections referenced by sheathing/rafters/connectors)
+- Underlayment (R905.x and related; HVHZ where applicable)
+- Insulation (applicable roof/ceiling provisions; cite section used)
+- Wind Resistance (R301.2.1 and applicable uplift/roof covering sections incl. R905.x, connectors/load path as applicable)
 
-**5. GENERAL STRUCTURAL REQUIREMENTS:**
-- Verify all materials meet code specifications
-- Check dimensional requirements and tolerances
-- Confirm proper installation methods
-- Validate structural adequacy
-
-REQUIRED OUTPUT FORMAT:
-Use this exact plain text structure (no markdown formatting):
-
-OVERALL STATUS: [COMPLIANT/NON-COMPLIANT/REQUIRES REVIEW]
+OUTPUT FORMAT (plain text only; exact structure):
+OVERALL STATUS: [COMPLIANT/NON-COMPLIANT/REQUIRES REVIEW/MISSING]
 
 ELEMENT ANALYSIS:
 Sheathing: [STATUS] - [FBC Reference] - [Brief analysis]
@@ -102,18 +107,17 @@ Wind Resistance: [STATUS] - [FBC Reference] - [Brief analysis]
 
 CRITICAL FINDINGS:
 Major Issues:
-- [List critical compliance issues]
+- [List issues with exact citations]
 
 Required Corrections:
-- [List necessary modifications]
+- [Precise fixes with table/section references]
 
 Professional Recommendations:
-- [Engineering recommendations]
+- [Targeted engineering recs; e.g., connector upgrades, alternate fastening schedule, rafter size/species change, HVHZ-compliant underlayment]
 
 SUMMARY:
-[Overall assessment and next steps]
+[Overall assessment; list items marked MISSING; list reasons for any REQUIRES REVIEW; state if HVHZ/product-approval dependency elevated underlayment.]
 
-Use plain text only. No markdown symbols. Cite specific FBC sections.
             """
             
             # Call Navigator AI API
@@ -178,27 +182,60 @@ Use plain text only. No markdown symbols. Cite specific FBC sections.
         """
         try:
             specific_prompt = f"""
-You are a Florida Building Code expert. Focus specifically on validating the {element_type} requirements for this roof design.
+You are a Florida Building Code - Residential (FBC-R) 2023 expert. Validate ONLY the {element_type} for the roof design below. Do not validate other elements.
 
-ROOF DESIGN SPECIFICATIONS:
+ROOF DESIGN SPECIFICATIONS (verbatim source):
 {agent1_output}
 
-FOCUSED VALIDATION FOR: {element_type.upper()}
+SCOPE & RULES
+- Use only the text above. Do not assume typical values.
+- Status meanings:
+  COMPLIANT = meets cited FBC-R requirement(s)
+  NON-COMPLIANT = violates cited requirement(s)
+  REQUIRES REVIEW = present but info is insufficient/ambiguous/contradictory OR exact section/table cannot be confirmed
+  MISSING = element not mentioned at all
+  N/A = not applicable per FBC-R (must cite why)
+- Quote the design’s key values for this element before judging (e.g., “7/16 in OSB, 8d ring shank @ 6 in edge/field”).
+- Cite precise sections/tables (e.g., “FBC-R 2023 R803.2.1; Table R802.4.1(1)”). Do not fabricate. If exact citation cannot be confirmed, set REQUIRES REVIEW and say “Exact citation verification needed.”
 
-Provide a detailed analysis of only the {element_type} requirements:
-1. Extract all {element_type}-related specifications from the design
-2. Identify specific Florida Building Code requirements for {element_type}
-3. Compare design vs. requirements
-4. Determine compliance status
-5. Provide specific code citations
+TARGET SECTIONS BY ELEMENT (use the most relevant subset; do not list all):
+- sheathing → R803.* and related fastening tables
+- rafter spacing/spans → R802.* span tables (species/grade/size/spacing)
+- fastening/connections → R803.*, R802.*, manufacturer/listed connectors as applicable
+- underlayment → R905.x (and HVHZ provisions where applicable)
+- insulation → applicable roof/ceiling/condensation/ventilation provisions
+- wind resistance → R301.2.1 design wind (Vult, exposure), uplift/load path, roof covering wind attachment (incl. R905.x)
 
-FORMAT:
-ELEMENT: {element_type.title()}
-DESIGN SPECIFICATION: [what the design shows]
-CODE REQUIREMENT: [specific Florida Building Code requirement]
-COMPLIANCE: [COMPLIES/NON-COMPLIANT/REVIEW_REQUIRED]
-CODE CITATION: [specific section/table reference]
-ANALYSIS: [detailed explanation of the validation]
+DATA NEEDED TO VALIDATE (mark each as “provided” or “missing” for this element):
+- sheathing: type, thickness, span rating/edge support if shown, fastening size/pattern
+- rafter spacing/spans: member size, species/grade, spacing, span
+- fastening/connections: fastener type/size/spacing, connector types/locations
+- underlayment: type/layers/laps/fastening, HVHZ or product-approval dependencies
+- insulation: type, R-value, location, condensation/ventilation notes
+- wind resistance: Vult, exposure category, risk category/site, roof zones, covering attachment class
+
+OUTPUT (plain text only; exact structure):
+ELEMENT: {element_type}
+STATUS: [COMPLIANT/NON-COMPLIANT/REQUIRES REVIEW/MISSING/N/A]
+
+DESIGN EVIDENCE:
+- [verbatim facts for this element only]
+
+REQUIRED DATA TO VALIDATE:
+- [item]: [provided/missing]
+- [item]: [provided/missing]
+
+CODE CHECKS:
+- [Check #1] - [PASS/FAIL/REVIEW] - [FBC Reference] - [short analysis]
+- [Check #2] - [PASS/FAIL/REVIEW] - [FBC Reference] - [short analysis]
+- [Add checks as needed for this element only]
+
+FINAL DETERMINATION:
+- [one sentence explaining why the STATUS was set, referencing the most decisive check]
+
+CORRECTIONS (if NON-COMPLIANT or REQUIRES REVIEW):
+- [precise fix or info needed with section/table reference]
+
             """
             
             response = self.client.chat.completions.create(

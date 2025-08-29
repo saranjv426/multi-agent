@@ -89,77 +89,59 @@ class RoofDesignAnalyzer:
             
             # Optimized prompt for Mistral Small 3.1 - Enhanced accuracy and structure
             analysis_prompt = """
-You are an expert structural engineer analyzing a roof design drawing. Your task is to extract ALL visible technical specifications with precision and detail.
+ROLE:
+You are an expert structural engineer extracting technical data from roof design drawings. Your job is to transcribe ALL visible specifications exactly as shown—no assumptions, no validation, no opinions.
 
-ANALYSIS INSTRUCTIONS:
-Study this architectural drawing carefully and identify every technical detail. Pay special attention to:
+INPUT:
+[Roof drawing(s) provided]
 
-**DIMENSIONAL MEASUREMENTS:**
-- Rafter spacing (look for "16" O.C.", "24" O.C.", "19.2" O.C.")
-- Span lengths (measure between supports)
-- Member sizes (2x4, 2x6, 2x8, 2x10, 2x12, etc.)
-- Thickness measurements (7/16", 5/8", 15/32", etc.)
-- Lumber beam dimensions (16" L.V.L. wood beam, etc.)
+STRICT EXTRACTION RULES:
+- Report only what is explicitly shown in text/labels/dimensions. Do not infer typical values.
+- Preserve units and wording exactly as printed; you may add a normalized value in parentheses (e.g., 7/16" (0.4375 in)).
+- If a field exists but text is unreadable, write “not legible”.
+- If an item does not appear anywhere on the drawing(s), write “not specified”.
+- Spans: Report explicit dimension strings. Only compute spans if a drawing scale or graphic bar is shown; otherwise write “not dimensioned”.
+- Rafter/truss spacing: record the exact “O.C.” values as shown (e.g., 24" O.C., 19.2" O.C.).
+- Slope/Pitch: list every roof plane with its slope in rise:run (vertical:horizontal) if shown (e.g., 3:12). If only degrees are printed and no ratio is shown, write “degrees only: [X°]”.
+- Capture “TYP.” notes with scope (e.g., “16" O.C. TYP. unless noted”).
+- Capture detail references (e.g., 3/A4.2) and product approval/NOA numbers if present.
+- Each fact goes in one place only. If a note does not fit any field below, put it under OTHER NOTES.
+- Output must exactly match the plain-text schema below—no extra lines or headings.
 
-**MATERIAL SPECIFICATIONS:**
-- Sheathing type and thickness (OSB, plywood, specific thickness)
-- Lumber grades and species (SYP, etc.)
-- Fastener specifications (8d ring shank nails, spacing patterns)
-- Insulation details (R-38 spray foam, type, R-value, thickness)
-- Underlayment specifications (self-adhering synthetic, etc.)
-- Roofing materials (Galvalum metal roof, etc.)
-- Hardware specifications (Simpson straps, metal drip edge, etc.)
-
-**SLOPE/PITCH ANALYSIS:**
-- Roof pitch ratios (look for slope indicators and report in standard rise:run format)
-- Standard format is rise:run (3:12, 4:12, 6:12, 8:12) where first number is vertical rise
-- Triangular pitch diagrams (often shown with slope indicators)
-- Angle measurements in degrees
-- Ridge and eave details
-- CRITICAL: Use standard rise:run format (vertical:horizontal)
-
-**STRUCTURAL CONNECTIONS:**
-- Fastening patterns and schedules
-- Hardware specifications (straps, hangers, clips)
-- Connection details at critical points
-- Load path elements
-
-**TEXT ANNOTATIONS:**
-- Read ALL text labels, dimensions, and specifications
-- Note code references (FBC, IRC, etc.)
-- Material callouts and notes
-
-REQUIRED OUTPUT FORMAT:
-Use this exact plain text structure (no markdown formatting):
-
+OUTPUT FORMAT (plain text only):
 DIMENSIONS FOUND:
-- Rafter spacing: [spacing measurements]
-- Spans: [span measurements or "not specified"]
-- Lumber sizes: [sizes found]
+- Rafter spacing: [values as shown; use semicolons if multiple]
+- Spans: [dimension strings; or "not dimensioned"/"not specified"]
+- Lumber sizes: [list; or "not specified"]
+- Thicknesses: [list; or "not specified"]
 
 MATERIALS IDENTIFIED:
-- Sheathing: [type and thickness]
-- Lumber grade: [grade if visible]
-- Fasteners: [nail/screw specifications]
-- Insulation: [R-value, type, thickness]
-- Underlayment: [type and specifications]
-- Roofing: [material type and specifications]
+- Sheathing: [type/thickness; edge support if shown; or "not specified"]
+- Lumber grade/species: [value; or "not specified"/"not legible"]
+- Fasteners: [type/size/schedule; or "not specified"]
+- Insulation: [type, location, R-value, thickness; or "not specified"]
+- Underlayment: [type/layers/laps/fastening if shown; or "not specified"]
+- Roofing: [material/system; or "not specified"]
+- Hardware: [straps/clips/hangers/part numbers; or "not specified"]
 
 SLOPE/PITCH DETAILS:
-- Pitch: [ratio in standard rise:run format (e.g., 3:12, 4:12) - vertical:horizontal]
+- Roof planes: [plane label/area if shown] - [pitch ratio]; [repeat per plane] 
+  [If only degrees are printed, use "degrees only: X°"]
 
 STRUCTURAL ELEMENTS:
-- Rafters: [rafter details]
-- Connections: [connection hardware]
-- Hardware: [straps, clips, other details]
+- Rafters/Trusses: [member type/size/notes; or "not specified"]
+- Connections: [fastening/connector details; or "not specified"]
+- Edge support: [H-clips/blocked/notes; or "not specified"]
+- Detail refs: [e.g., 3/A4.2; list; or "not specified"]
 
-TEXT ANNOTATIONS:
-[List all visible text, labels, dimensions, notes]
+OTHER NOTES:
+- [verbatim notes that do not fit the above, e.g., bearing elevations like “Truss bearing 9'-4" A.F.F. field verify”, “Beam bearing 12'-0" A.F.F.”, “Roll-up door verify size and installation”, general finish notes, product approvals/NOA numbers, etc.; or "none"]
 
-CRITICAL OBSERVATIONS:
-[Note important design features or concerns]
+CONSTRAINTS:
+- Plain text only. No markdown or extra commentary.
+- Do not validate or judge compliance; extraction only.
+- If a field has multiple values (e.g., several pitches or fastener schedules), list them separated by semicolons in the order they appear.
 
-Use plain text only. No markdown symbols. Be precise and thorough.
             """
             
             # Prepare the API request
