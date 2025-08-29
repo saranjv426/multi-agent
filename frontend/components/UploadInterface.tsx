@@ -271,10 +271,12 @@ export default function UploadInterface({ onBack }: UploadInterfaceProps) {
             <span>Back to Home</span>
           </button>
           
-          <h1 className="text-2xl font-bold text-gray-900">Roof Design Validation</h1>
+          <h1 className="text-2xl font-bold text-gray-900 absolute left-1/2 transform -translate-x-1/2">Roof Design Validation</h1>
+          
+          <div></div> {/* Spacer for balance */}
         </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 min-h-[calc(100vh-200px)]">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 min-h-[calc(100vh-200px)]">
           {/* Upload Section */}
           <div className="space-y-4 h-full">
             <motion.div
