@@ -35,25 +35,25 @@ export default function HomePage() {
       icon: CloudArrowUpIcon,
       title: "Smart Image Analysis",
       description: "Upload any roof design image, CAD file, or technical drawing. Our LLM's extracts every structural detail with precision.",
-      color: "blue"
+      color: "blue" as const
     },
     {
       icon: ShieldCheckIcon,
       title: "Code Compliance Validation",
       description: "Instantly validate against Florida Residential Building Code 2023. Get specific section citations and compliance status.",
-      color: "green"
+      color: "green" as const
     },
     {
       icon: DocumentCheckIcon,
       title: "Professional Reports",
       description: "Generate permit-ready compliance reports with detailed analysis, code citations, and pass/fail determinations.",
-      color: "purple"
+      color: "purple" as const
     },
     {
       icon: ChartBarIcon,
       title: "Real-time Insights",
       description: "Track validation progress, view detailed analytics, and get instant feedback on design modifications.",
-      color: "orange"
+      color: "orange" as const
     }
   ]
 
