@@ -18,6 +18,15 @@ import FeatureCard from '@/components/FeatureCard'
 import UploadInterface from '@/components/UploadInterface'
 import StatsSection from '@/components/StatsSection'
 
+type FeatureColor = 'blue' | 'green' | 'purple' | 'orange'
+
+interface Feature {
+  icon: React.ComponentType<any>
+  title: string
+  description: string
+  color: FeatureColor
+}
+
 export default function HomePage() {
   const [isUploadMode, setIsUploadMode] = useState(false)
   const [mounted, setMounted] = useState(false)
@@ -30,30 +39,30 @@ export default function HomePage() {
     return null // Prevent hydration mismatch
   }
 
-  const features = [
+  const features: Feature[] = [
     {
       icon: CloudArrowUpIcon,
       title: "Smart Image Analysis",
       description: "Upload any roof design image, CAD file, or technical drawing. Our LLM's extracts every structural detail with precision.",
-      color: "blue" as const
+      color: "blue"
     },
     {
       icon: ShieldCheckIcon,
       title: "Code Compliance Validation",
       description: "Instantly validate against Florida Residential Building Code 2023. Get specific section citations and compliance status.",
-      color: "green" as const
+      color: "green"
     },
     {
       icon: DocumentCheckIcon,
       title: "Professional Reports",
       description: "Generate permit-ready compliance reports with detailed analysis, code citations, and pass/fail determinations.",
-      color: "purple" as const
+      color: "purple"
     },
     {
       icon: ChartBarIcon,
       title: "Real-time Insights",
       description: "Track validation progress, view detailed analytics, and get instant feedback on design modifications.",
-      color: "orange" as const
+      color: "orange"
     }
   ]
 
