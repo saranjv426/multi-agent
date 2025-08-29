@@ -262,7 +262,7 @@ export default function UploadInterface({ onBack }: UploadInterfaceProps) {
     <div className="min-h-screen py-4">
       <div className="container mx-auto px-4 max-w-[1770px]">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center mb-8">
           <button
             onClick={onBack}
             className="inline-flex items-center space-x-2 text-gray-600 hover:text-gray-900 transition-colors"
@@ -270,10 +270,6 @@ export default function UploadInterface({ onBack }: UploadInterfaceProps) {
             <ArrowLeftIcon className="h-5 w-5" />
             <span>Back to Home</span>
           </button>
-          
-          <h1 className="text-2xl font-bold text-gray-900 absolute left-1/2 transform -translate-x-1/2">Roof Design Validation</h1>
-          
-          <div></div> {/* Spacer for balance */}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 min-h-[calc(100vh-200px)]">
