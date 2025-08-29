@@ -1,10 +1,9 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { IconProps } from '@heroicons/react/24/outline'
 
 interface Feature {
-  icon: React.ComponentType<IconProps>
+  icon: React.ComponentType<any>
   title: string
   description: string
   color: 'blue' | 'green' | 'purple' | 'orange'
