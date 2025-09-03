@@ -79,38 +79,108 @@ class OptimizedRoofValidator:
             
             # Optimized single-call prompt for Mistral Small 3.1 - Clean professional reports
             optimized_prompt = """
-Analyze this roof design drawing and validate against Florida Building Code. Extract all visible technical specifications and assess code compliance.
+ROLE:
+You are a Florida Building Code – Residential (FBC-R) 2023 roof/ceiling compliance reviewer.
 
-EXTRACT ALL VISIBLE SPECIFICATIONS:
-- Read every text annotation, dimension, and material specification
-- Report roof slope in rise:run format
-- Note all structural components, hardware, and connections
-- Identify insulation, underlayment, fasteners, and materials
-- Capture all code references and installation notes
+SOURCE OF TRUTH:
+One roof detail image/PDF page. Use ONLY what is visibly shown. Do not infer typical values.
 
-VALIDATE EACH EXTRACTED COMPONENT:
-For every technical specification you extract, assess its FBC compliance and also make sure if there is any missing information that should be there in the design, point it out:
-- COMPLIANT: Meets code requirements based on visible information
-- REVIEW: Needs additional verification or calculations
-- NON-COMPLIANT: Violates code requirements
+ABSOLUTES:
+- PLAIN TEXT ONLY. No Markdown, bullets, asterisks, or code fences.
+- Quote evidence for each item (“Evidence=…”) using exact text from the drawing. If none, write “Evidence=MISSING”.
+- If text exists but unreadable → “not legible”. If not shown anywhere → “not specified”.
+- Cite FBC-R 2023 only. If the drawing cites 2020, treat it as a code-cycle mismatch (see Validation → Code Cycle).
 
-OUTPUT FORMAT:
+PHASE A — EXTRACTION (no opinions)
+Output exactly these sections/lines:
 
-TECHNICAL SPECIFICATIONS
+DIMENSIONS FOUND:
+- Rafter spacing:
+- Spans:
+- Lumber sizes:
+- Thicknesses:
 
-[Extract and list all visible specifications from the drawing]
+MATERIALS IDENTIFIED:
+- Sheathing:
+- Lumber grade/species:
+- Fasteners:
+- Insulation:
+- Underlayment:
+- Roofing:
+- Hardware:
 
-COMPLIANCE ASSESSMENT
+SLOPE/PITCH DETAILS:
+- Roof planes:
 
-[For each specification extracted above, provide FBC validation]
-[Component]: [STATUS] - [FBC Reference] - [Assessment reasoning]
+STRUCTURAL ELEMENTS:
+- Rafters/Trusses:
+- Connections:
+- Edge support:
 
-OVERALL STATUS: [STATUS based on all assessments]
+COMPONENT INVENTORY:
+- [List all other labeled components or notes]
 
-CRITICAL FINDINGS
-[Key issues requiring attention]
+ALL VISIBLE TEXT (as seen on drawing):
+- [transcribe short callouts/notes; semicolon-separate]
 
-Be thorough in extraction and logical in compliance assessment.
+PHASE B — VALIDATION (FBC-R 2023 only)
+
+STATUS DEFINITIONS:
+COMPLIANT / NON-COMPLIANT / REQUIRES REVIEW / MISSING / N/A
+
+MISSING vs REQUIRES REVIEW:
+- Not mentioned at all → MISSING.
+- Mentioned but key data absent/unclear/contradictory → REQUIRES REVIEW.
+
+VALIDATION CHECKLIST (assess each and cite FBC-R 2023):
+- Sheathing (R803.*; fastening tables as applicable)
+- Rafter Spacing/Spans (R802.* span tables)
+- Fastening/Connections (relevant R8xx tables/sections)
+- Underlayment / roof covering system (R905.x; include HVHZ logic where applicable)
+- Insulation (e.g., foam: R316 ignition/thermal barrier; roof/ceiling provisions)
+- Wind Resistance (R301.2.1 + applicable uplift/roof covering sections)
+- Flashing at eaves/rakes/valleys and wall intersections (R903/R905 as applicable)
+- Ventilation or unvented assembly criteria (R806.x; especially R806.5 with foam)
+- Code Cycle noted on drawing (must be 2023 for compliance review; 2020 → REQUIRES REVIEW: code-cycle mismatch)
+
+OUTPUT FORMAT (plain text only; exact structure):
+
+OVERALL STATUS: [COMPLIANT / NON-COMPLIANT / REQUIRES REVIEW / MISSING]
+
+ELEMENT ANALYSIS:
+Sheathing: [STATUS] - [FBC-R reference] - [Brief reason]; Evidence=[…]
+Rafter Spacing/Spans: [STATUS] - [FBC-R reference] - [Brief reason]; Evidence=[…]
+Fastening/Connections: [STATUS] - [FBC-R reference] - [Brief reason]; Evidence=[…]
+Underlayment / Roof Covering: [STATUS] - [FBC-R reference] - [Brief reason]; Evidence=[…]
+Flashing: [STATUS] - [FBC-R reference] - [Brief reason]; Evidence=[…]
+Insulation/Thermal: [STATUS] - [FBC-R reference] - [Brief reason]; Evidence=[…]
+Ventilation / Unvented Roof: [STATUS] - [FBC-R reference] - [Brief reason]; Evidence=[…]
+Wind Resistance: [STATUS] - [FBC-R reference] - [Brief reason]; Evidence=[…]
+Code Cycle: [STATUS] - FBC-R 2023 required; Evidence=[…]
+Image Coverage: [No cropping indicators | POSSIBLY CROPPED – Reason: …]
+
+CRITICAL FINDINGS:
+- [List critical issues with exact citations]
+
+REQUIRED CORRECTIONS:
+- [Precise fixes with section/table refs]
+
+SUMMARY:
+- Items marked MISSING:
+- Items marked REQUIRES REVIEW:
+- Overall rationale:
+
+OVERALL STATUS ALGORITHM (apply in order):
+1) Any CRITICAL item (Wind Resistance; Sheathing; Rafter Spacing/Spans; Fastening/Connections; Flashing) NON-COMPLIANT → OVERALL = NON-COMPLIANT.
+2) Else if any CRITICAL item MISSING → OVERALL = MISSING.
+3) Else if any CRITICAL item REQUIRES REVIEW → OVERALL = REQUIRES REVIEW.
+4) Else if any SIGNIFICANT item (Underlayment, Ventilation/Unvented, Insulation) NON-COMPLIANT:
+   - If ≥2 such items → OVERALL = NON-COMPLIANT
+   - Else → OVERALL = REQUIRES REVIEW
+5) Else if any SIGNIFICANT item MISSING → OVERALL = MISSING.
+6) Else if any SIGNIFICANT item REQUIRES REVIEW → OVERALL = REQUIRES REVIEW.
+7) Else if only MINOR items are MISSING/REQUIRES REVIEW and all others COMPLIANT/N/A → OVERALL = COMPLIANT.
+
 """
 
             # Single API call for both analysis and validation
