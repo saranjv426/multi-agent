@@ -77,110 +77,87 @@ class OptimizedRoofValidator:
                 else:
                     raise ValueError("Unsupported image format")
             
-            # Optimized single-call prompt for Mistral Small 3.1 - Clean professional reports
+            # Optimized single-call prompt combining Agent1 extraction + Agent2 validation
             optimized_prompt = """
 ROLE:
-You are a Florida Building Code – Residential (FBC-R) 2023 roof/ceiling compliance reviewer.
+You are a certified structural engineer AND Florida Building Code - Residential (FBC-R) 2023 compliance expert. Your task is to extract ALL visible technical specifications from this roof design drawing AND validate each element for code compliance in a single comprehensive analysis.
 
 SOURCE OF TRUTH:
 One roof detail image/PDF page. Use ONLY what is visibly shown. Do not infer typical values.
 
-ABSOLUTES:
-- PLAIN TEXT ONLY. No Markdown, bullets, asterisks, or code fences.
-- Quote evidence for each item (“Evidence=…”) using exact text from the drawing. If none, write “Evidence=MISSING”.
-- If text exists but unreadable → “not legible”. If not shown anywhere → “not specified”.
-- Cite FBC-R 2023 only. If the drawing cites 2020, treat it as a code-cycle mismatch (see Validation → Code Cycle).
+STRICT EXTRACTION RULES:
+- Report only what is explicitly shown in text/labels/dimensions. Do not assume typical values.
+- If text exists but unreadable → "not legible". If not shown anywhere → "not specified".
+- Preserve units and wording exactly as printed; you may add normalized value in parentheses.
+- Quote evidence for each finding using exact text from drawing.
+- CRITICAL PRIORITY: Slope/pitch detection is ESSENTIAL. Look for slope markings in triangular callouts, dimension lines, or small text near roof lines. Common formats: "3:12", "3/12", "4:12", "4/12". These ratios represent rise:run and are often very small but MUST be found.
 
-PHASE A — EXTRACTION (no opinions)
-Output exactly these sections/lines:
+OUTPUT FORMAT:
+
+### Technical Specifications:
+
+BEFORE starting extraction, FIRST scan the entire drawing for slope/pitch ratios (3:12, 3/12, 4:12, 4/12, etc.) - look especially for small triangular callouts or dimension text near sloped roof lines. The slope "3/12" is visible in this drawing and MUST be captured!
 
 DIMENSIONS FOUND:
-- Rafter spacing:
-- Spans:
-- Lumber sizes:
-- Thicknesses:
+- Rafter spacing: [values as shown; semicolon-separate if multiple]
+- Spans: [dimension strings; or not dimensioned/"not specified"]
+- Lumber sizes: [list; or "not specified"]
+- Thicknesses: [list; or "not specified"]
 
 MATERIALS IDENTIFIED:
-- Sheathing:
-- Lumber grade/species:
-- Fasteners:
-- Insulation:
-- Underlayment:
-- Roofing:
-- Hardware:
+- Sheathing: [type/thickness; edge support if shown; or "not specified"]
+- Lumber grade/species: [value; or "not specified"/"not legible"]
+- Fasteners: [type/size/schedule; or "not specified"]
+- Insulation: [type, location, R-value, thickness; or "not specified"]
+- Underlayment: [type/layers/laps/fastening if shown; or "not specified"]
+- Roofing: [material/system; or "not specified"]
+- Hardware: [straps/clips/hangers/part numbers; or "not specified"]
 
 SLOPE/PITCH DETAILS:
-- Roof planes:
+- Roof planes: [MANDATORY: Look for slope indicators like "3:12", "3/12", "4:12", "4/12" in triangular callouts, dimension arrows, or text near sloped lines. These are critical roof specifications that appear as small text or symbols. Examine every sloped roof line carefully for these numerical ratios. Report format exactly as shown including whether it uses ":" or "/" (e.g., "3:12" or "3/12"). If degrees only, write "degrees only: X°". If truly absent, write not specified]
 
 STRUCTURAL ELEMENTS:
-- Rafters/Trusses:
-- Connections:
-- Edge support:
+- Rafters/Trusses: [member type/size/notes; or "not specified"]
+- Connections: [fastening/connector details; or "not specified"]
+- Edge support: [H-clips/blocked/notes; or "not specified"]
 
-COMPONENT INVENTORY:
-- [List all other labeled components or notes]
-
-ALL VISIBLE TEXT (as seen on drawing):
-- [transcribe short callouts/notes; semicolon-separate]
-
-PHASE B — VALIDATION (FBC-R 2023 only)
+**VALIDATION CHECKLIST:**
 
 STATUS DEFINITIONS:
-COMPLIANT / NON-COMPLIANT / REQUIRES REVIEW / MISSING / N/A
+- COMPLIANT = meets cited FBC-R requirement(s)
+- NON-COMPLIANT = violates cited requirement(s)  
+- REQUIRES REVIEW = element present but info insufficient/ambiguous OR exact code confirmation needed
+- MISSING = element not mentioned at all
+- N/A = not applicable per FBC-R (cite why)
 
-MISSING vs REQUIRES REVIEW:
-- Not mentioned at all → MISSING.
-- Mentioned but key data absent/unclear/contradictory → REQUIRES REVIEW.
+Sheathing: [STATUS] - [FBC-R reference] - [Brief analysis]; Evidence=[exact quote from drawing]
 
-VALIDATION CHECKLIST (assess each and cite FBC-R 2023):
-- Sheathing (R803.*; fastening tables as applicable)
-- Rafter Spacing/Spans (R802.* span tables)
-- Fastening/Connections (relevant R8xx tables/sections)
-- Underlayment / roof covering system (R905.x; include HVHZ logic where applicable)
-- Insulation (e.g., foam: R316 ignition/thermal barrier; roof/ceiling provisions)
-- Wind Resistance (R301.2.1 + applicable uplift/roof covering sections)
-- Flashing at eaves/rakes/valleys and wall intersections (R903/R905 as applicable)
-- Ventilation or unvented assembly criteria (R806.x; especially R806.5 with foam)
-- Code Cycle noted on drawing (must be 2023 for compliance review; 2020 → REQUIRES REVIEW: code-cycle mismatch)
+Rafter Spacing/Spans: [STATUS] - [FBC-R reference] - [Brief analysis]; Evidence=[exact quote]
 
-OUTPUT FORMAT (plain text only; exact structure):
+Fastening/Connections: [STATUS] - [FBC-R reference] - [Brief analysis]; Evidence=[exact quote]
 
-OVERALL STATUS: [COMPLIANT / NON-COMPLIANT / REQUIRES REVIEW / MISSING]
+Underlayment: [STATUS] - [FBC-R reference] - [Brief analysis]; Evidence=[exact quote]
 
-ELEMENT ANALYSIS:
-Sheathing: [STATUS] - [FBC-R reference] - [Brief reason]; Evidence=[…]
-Rafter Spacing/Spans: [STATUS] - [FBC-R reference] - [Brief reason]; Evidence=[…]
-Fastening/Connections: [STATUS] - [FBC-R reference] - [Brief reason]; Evidence=[…]
-Underlayment / Roof Covering: [STATUS] - [FBC-R reference] - [Brief reason]; Evidence=[…]
-Flashing: [STATUS] - [FBC-R reference] - [Brief reason]; Evidence=[…]
-Insulation/Thermal: [STATUS] - [FBC-R reference] - [Brief reason]; Evidence=[…]
-Ventilation / Unvented Roof: [STATUS] - [FBC-R reference] - [Brief reason]; Evidence=[…]
-Wind Resistance: [STATUS] - [FBC-R reference] - [Brief reason]; Evidence=[…]
-Code Cycle: [STATUS] - FBC-R 2023 required; Evidence=[…]
-Image Coverage: [No cropping indicators | POSSIBLY CROPPED – Reason: …]
+Insulation: [STATUS] - [FBC-R reference] - [Brief analysis]; Evidence=[exact quote]
 
-CRITICAL FINDINGS:
-- [List critical issues with exact citations]
+Wind Resistance: [STATUS] - [FBC-R reference] - [Brief analysis]; Evidence=[exact quote]
 
-REQUIRED CORRECTIONS:
-- [Precise fixes with section/table refs]
+**OVERALL STATUS:** [COMPLIANT/NON-COMPLIANT/REQUIRES REVIEW/MISSING]
 
-SUMMARY:
-- Items marked MISSING:
-- Items marked REQUIRES REVIEW:
-- Overall rationale:
+**CRITICAL FINDINGS:**
+- [List critical issues with exact FBC-R citations]
 
-OVERALL STATUS ALGORITHM (apply in order):
-1) Any CRITICAL item (Wind Resistance; Sheathing; Rafter Spacing/Spans; Fastening/Connections; Flashing) NON-COMPLIANT → OVERALL = NON-COMPLIANT.
-2) Else if any CRITICAL item MISSING → OVERALL = MISSING.
-3) Else if any CRITICAL item REQUIRES REVIEW → OVERALL = REQUIRES REVIEW.
-4) Else if any SIGNIFICANT item (Underlayment, Ventilation/Unvented, Insulation) NON-COMPLIANT:
-   - If ≥2 such items → OVERALL = NON-COMPLIANT
-   - Else → OVERALL = REQUIRES REVIEW
-5) Else if any SIGNIFICANT item MISSING → OVERALL = MISSING.
-6) Else if any SIGNIFICANT item REQUIRES REVIEW → OVERALL = REQUIRES REVIEW.
-7) Else if only MINOR items are MISSING/REQUIRES REVIEW and all others COMPLIANT/N/A → OVERALL = COMPLIANT.
+**REQUIRED CORRECTIONS:**
+- [Precise fixes with section/table references]
 
+**SUMMARY:**
+- [brief explanation of overall status determination]
+
+REQUIREMENTS:
+- Use markdown formatting for headers and bold text as shown above
+- Always cite precise FBC-R 2023 sections/tables. Do not fabricate citations.
+- Quote design evidence for every assessment.
+- Maintain proper spacing between sections.
 """
 
             # Single API call for both analysis and validation
@@ -222,7 +199,6 @@ OVERALL STATUS ALGORITHM (apply in order):
             logger.info(f"Tokens - Total: {total_tokens}, Input: {prompt_tokens}, Output: {completion_tokens}")
             logger.info(f"Estimated Cost: ${estimated_cost:.4f}")
             logger.info(f"Processing Time: {processing_time:.2f}s")
-            logger.info(f"Performance Improvement: ~{((43.5 - processing_time) / 43.5 * 100):.0f}% faster")
             
             analysis_result = response.choices[0].message.content
             
@@ -251,11 +227,6 @@ OVERALL STATUS ALGORITHM (apply in order):
                 'tokens_used': total_tokens,
                 'estimated_cost': estimated_cost,
                 'processing_time': processing_time,
-                'optimization_savings': {
-                    'time_saved_seconds': max(0, 43.5 - processing_time),
-                    'cost_savings': max(0, 0.035 - estimated_cost),
-                    'performance_improvement_percent': min(100, max(0, (43.5 - processing_time) / 43.5 * 100))
-                },
                 'cache_key': filename or f"optimized_{int(time.time())}"
             }
             

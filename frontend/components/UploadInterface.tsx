@@ -210,12 +210,13 @@ export default function UploadInterface({ onBack }: UploadInterfaceProps) {
   const getComplianceStatus = (report: string): string => {
     if (!report) return 'Unknown'
     
-    // Look for overall status patterns
+    // Look for overall status patterns (updated to match our prompt output)
     const statusPatterns = [
-      /STATUS:\s*(COMPLIANT|NON-COMPLIANT|REVIEW|PENDING)/i,
-      /OVERALL:\s*(COMPLIANT|NON-COMPLIANT|REVIEW|PENDING)/i,
-      /COMPLIANCE:\s*(COMPLIANT|NON-COMPLIANT|REVIEW|PENDING)/i,
-      /RESULT:\s*(COMPLIANT|NON-COMPLIANT|REVIEW|PENDING)/i
+      /OVERALL STATUS:\s*(COMPLIANT|NON-COMPLIANT|REQUIRES REVIEW|MISSING)/i,
+      /STATUS:\s*(COMPLIANT|NON-COMPLIANT|REQUIRES REVIEW|MISSING)/i,
+      /OVERALL:\s*(COMPLIANT|NON-COMPLIANT|REQUIRES REVIEW|MISSING)/i,
+      /COMPLIANCE:\s*(COMPLIANT|NON-COMPLIANT|REQUIRES REVIEW|MISSING)/i,
+      /RESULT:\s*(COMPLIANT|NON-COMPLIANT|REQUIRES REVIEW|MISSING)/i
     ]
     
     for (const pattern of statusPatterns) {
@@ -226,12 +227,14 @@ export default function UploadInterface({ onBack }: UploadInterfaceProps) {
     }
     
     // Fallback: check if report contains compliance indicators
-    if (report.includes('COMPLIANT') && !report.includes('NON-COMPLIANT')) {
-      return 'COMPLIANT'
-    } else if (report.includes('NON-COMPLIANT')) {
+    if (report.includes('NON-COMPLIANT')) {
       return 'NON-COMPLIANT'
-    } else if (report.includes('REVIEW')) {
-      return 'REVIEW REQUIRED'
+    } else if (report.includes('REQUIRES REVIEW')) {
+      return 'REQUIRES REVIEW'
+    } else if (report.includes('MISSING')) {
+      return 'MISSING'
+    } else if (report.includes('COMPLIANT')) {
+      return 'COMPLIANT'
     }
     
     return 'ANALYSIS COMPLETE'
@@ -497,12 +500,9 @@ export default function UploadInterface({ onBack }: UploadInterfaceProps) {
                     <h4 className="font-medium text-gray-900 mb-3">Compliance Report Preview</h4>
                     <div className="text-sm text-gray-700 whitespace-pre-wrap prose prose-sm max-w-none">
                       {validationResult.validation_report?.split('\n').map((line, index) => {
-                        // Remove all asterisks and HTML tags
-                        const cleanLine = line.replace(/\*\*/g, '').replace(/<[^>]*>/g, '')
-                        
-                        // Style main section headings (TECHNICAL SPECIFICATIONS, COMPLIANCE ASSESSMENT, etc.)
-                        if (/^(###\s*)?(TECHNICAL SPECIFICATIONS|COMPLIANCE ASSESSMENT|CRITICAL FINDINGS|SUMMARY|OVERALL STATUS)/.test(cleanLine)) {
-                          const displayText = cleanLine.replace(/^###\s*/, '')
+                        // Check for markdown headers first (before cleaning)
+                        if (/^###\s*(.+)$/.test(line)) {
+                          const displayText = line.replace(/^###\s*/, '')
                           return (
                             <div key={index} className="font-bold text-lg text-blue-600 mt-6 mb-3 border-b border-blue-200 pb-1">
                               {displayText}
@@ -510,8 +510,42 @@ export default function UploadInterface({ onBack }: UploadInterfaceProps) {
                           )
                         }
                         
-                        // Style subsection headings (Dimensions:, Materials:, etc.)
-                        if (/^(Dimensions|Materials|Structural Elements|Roof Slope|Component Inventory|All Visible Text and Specifications|Major Issues|Required Corrections|Professional Recommendations|Overall Assessment|Key Concerns|Next Steps):$/.test(cleanLine)) {
+                        // Check for validation checklist and summary bold headers (make them blue)
+                        if (/^\*\*(VALIDATION CHECKLIST|SUMMARY):\*\*\s*$/.test(line)) {
+                          const displayText = line.replace(/^\*\*(.+):\*\*\s*$/, '$1:')
+                          return (
+                            <div key={index} className="font-bold text-lg text-blue-600 mt-6 mb-3 border-b border-blue-200 pb-1">
+                              {displayText}
+                            </div>
+                          )
+                        }
+                        
+                        // Check for other bold markdown headers (**TEXT:**)
+                        if (/^\*\*([^*]+):\*\*\s*$/.test(line)) {
+                          const displayText = line.replace(/^\*\*(.+):\*\*\s*$/, '$1:')
+                          return (
+                            <div key={index} className="font-bold text-gray-800 mt-4 mb-2">
+                              {displayText}
+                            </div>
+                          )
+                        }
+                        
+                        // Remove asterisks and HTML tags for regular content
+                        const cleanLine = line.replace(/\*\*/g, '').replace(/<[^>]*>/g, '')
+                        
+                        // Style main section headings (fallback for plain text headers)
+                        if (/^(TECHNICAL SPECIFICATIONS|COMPLIANCE ASSESSMENT|CRITICAL FINDINGS|SUMMARY|OVERALL STATUS)/.test(cleanLine)) {
+                          return (
+                            <div key={index} className="font-bold text-lg text-blue-600 mt-6 mb-3 border-b border-blue-200 pb-1">
+                              {cleanLine}
+                            </div>
+                          )
+                        }
+                        
+
+                        
+                        // Style other subsection headings (DIMENSIONS FOUND:, MATERIALS IDENTIFIED:, etc.)
+                        if (/^(DIMENSIONS FOUND|MATERIALS IDENTIFIED|SLOPE\/PITCH DETAILS|STRUCTURAL ELEMENTS|ALL VISIBLE TEXT|CRITICAL FINDINGS|REQUIRED CORRECTIONS|Major Issues|Required Corrections|Professional Recommendations|Overall Assessment|Key Concerns|Next Steps):$/.test(cleanLine)) {
                           return (
                             <div key={index} className="font-bold text-gray-800 mt-4 mb-2">
                               {cleanLine}
@@ -519,7 +553,40 @@ export default function UploadInterface({ onBack }: UploadInterfaceProps) {
                           )
                         }
                         
-                        // Style compliance items (any component followed by COMPLIANT/REVIEW/NON-COMPLIANT)
+                        // Style validation checklist items with color coding
+                        if (/^(Sheathing|Rafter Spacing\/Spans|Fastening\/Connections|Underlayment|Insulation|Wind Resistance):\s*(COMPLIANT|NON-COMPLIANT|REQUIRES REVIEW|MISSING)/.test(cleanLine)) {
+                          const status = cleanLine.match(/:\s*(COMPLIANT|NON-COMPLIANT|REQUIRES REVIEW|MISSING)/)?.[1]
+                          
+                          let bgColor = 'bg-gray-50'
+                          let borderColor = 'border-gray-200'
+                          let textColor = 'text-gray-700'
+                          
+                          if (status === 'COMPLIANT') {
+                            bgColor = 'bg-green-50'
+                            borderColor = 'border-green-300'
+                            textColor = 'text-green-800'
+                          } else if (status === 'NON-COMPLIANT') {
+                            bgColor = 'bg-red-50'
+                            borderColor = 'border-red-300'
+                            textColor = 'text-red-800'
+                          } else if (status === 'REQUIRES REVIEW') {
+                            bgColor = 'bg-yellow-50'
+                            borderColor = 'border-yellow-300'
+                            textColor = 'text-yellow-800'
+                          } else if (status === 'MISSING') {
+                            bgColor = 'bg-orange-50'
+                            borderColor = 'border-orange-300'
+                            textColor = 'text-orange-800'
+                          }
+                          
+                          return (
+                            <div key={index} className={`font-medium ${textColor} mt-3 mb-2 pl-3 pr-3 py-2 rounded-lg ${bgColor} border-l-4 ${borderColor}`}>
+                              {cleanLine}
+                            </div>
+                          )
+                        }
+                        
+                        // Style other compliance items
                         if (/^[A-Za-z\s&]+:\s*(COMPLIANT|REVIEW|NON-COMPLIANT)/.test(cleanLine)) {
                           return (
                             <div key={index} className="font-medium text-gray-700 mt-2 mb-1">
@@ -531,9 +598,7 @@ export default function UploadInterface({ onBack }: UploadInterfaceProps) {
                         // Regular content
                         return <div key={index} className="text-gray-600 leading-relaxed">{cleanLine}</div>
                       })}
-                      {validationResult.validation_report?.length > 1000 && (
-                        <div className="text-gray-500 text-xs mt-2">... (truncated for preview)</div>
-                      )}
+
                     </div>
                   </div>
                 </motion.div>

@@ -165,13 +165,6 @@ async def validate_roof_design_optimized(file: UploadFile = File(...)):
             filename=file.filename
         )
         
-        if result['success']:
-            savings = result['optimization_savings']
-            logger.info(f"Optimization Results:")
-            logger.info(f"Time Saved: {savings['time_saved_seconds']:.1f}s")
-            logger.info(f"Cost Saved: ${savings['cost_savings']:.4f}")
-            logger.info(f"Performance: {savings['performance_improvement_percent']:.0f}% faster")
-        
         return result
         
     except HTTPException:
