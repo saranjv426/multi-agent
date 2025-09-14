@@ -248,8 +248,9 @@ export default function UploadInterface({ onBack }: UploadInterfaceProps) {
         const loadingToast = toast.loading('Generating PDF report...')
         
         // Call the PDF generation endpoint
-        console.log('🌐 Calling endpoint: http://localhost:8000/generate-pdf-report')
-        const response = await fetch(`${'http://localhost:8000/generate-pdf-report'}`, {
+        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
+        console.log('🌐 Calling endpoint:', `${backendUrl}/generate-pdf-report`)
+        const response = await fetch(`${backendUrl}/generate-pdf-report`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
