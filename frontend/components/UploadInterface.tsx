@@ -287,12 +287,13 @@ export default function UploadInterface({ onBack }: UploadInterfaceProps) {
         toast.success('PDF report downloaded!')
       } catch (error) {
         console.error('💥 Error downloading PDF report:', error)
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
         console.error('📚 Error details:', {
-          message: error.message,
-          stack: error.stack,
-          name: error.name
+          message: errorMessage,
+          stack: error instanceof Error ? error.stack : undefined,
+          name: error instanceof Error ? error.name : 'Unknown'
         })
-        toast.error(`Failed to generate PDF report: ${error.message}`)
+        toast.error(`Failed to generate PDF report: ${errorMessage}`)
         
         // Fallback to text download if PDF generation fails
         console.log('📝 Falling back to text download...')
