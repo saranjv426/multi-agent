@@ -212,11 +212,11 @@ export default function UploadInterface({ onBack }: UploadInterfaceProps) {
     
     // Look for overall status patterns (updated to match our prompt output)
     const statusPatterns = [
-      /OVERALL STATUS:\s*(COMPLIANT|NON-COMPLIANT|REQUIRES REVIEW|MISSING)/i,
-      /STATUS:\s*(COMPLIANT|NON-COMPLIANT|REQUIRES REVIEW|MISSING)/i,
-      /OVERALL:\s*(COMPLIANT|NON-COMPLIANT|REQUIRES REVIEW|MISSING)/i,
-      /COMPLIANCE:\s*(COMPLIANT|NON-COMPLIANT|REQUIRES REVIEW|MISSING)/i,
-      /RESULT:\s*(COMPLIANT|NON-COMPLIANT|REQUIRES REVIEW|MISSING)/i
+      /OVERALL STATUS:\s*(COMPLIANT|NON-COMPLIANT|REQUIRES FURTHER REVIEW|MISSING)/i,
+      /STATUS:\s*(COMPLIANT|NON-COMPLIANT|REQUIRES FURTHER REVIEW|MISSING)/i,
+      /OVERALL:\s*(COMPLIANT|NON-COMPLIANT|REQUIRES FURTHER REVIEW|MISSING)/i,
+      /COMPLIANCE:\s*(COMPLIANT|NON-COMPLIANT|REQUIRES FURTHER REVIEW|MISSING)/i,
+      /RESULT:\s*(COMPLIANT|NON-COMPLIANT|REQUIRES FURTHER REVIEW|MISSING)/i
     ]
     
     for (const pattern of statusPatterns) {
@@ -229,8 +229,8 @@ export default function UploadInterface({ onBack }: UploadInterfaceProps) {
     // Fallback: check if report contains compliance indicators
     if (report.includes('NON-COMPLIANT')) {
       return 'NON-COMPLIANT'
-    } else if (report.includes('REQUIRES REVIEW')) {
-      return 'REQUIRES REVIEW'
+    } else if (report.includes('REQUIRES FURTHER REVIEW')) {
+      return 'REQUIRES FURTHER REVIEW'
     } else if (report.includes('MISSING')) {
       return 'MISSING'
     } else if (report.includes('COMPLIANT')) {
@@ -240,24 +240,77 @@ export default function UploadInterface({ onBack }: UploadInterfaceProps) {
     return 'ANALYSIS COMPLETE'
   }
 
-  const downloadReport = () => {
+  const downloadReport = async () => {
     if (validationResult) {
-      // Get the validation report content
-      const reportContent = validationResult.validation_report || 
-                           validationResult.compliance_report || 
-                           JSON.stringify(validationResult, null, 2)
-      
-      // Create and download report
-      const blob = new Blob([reportContent], { type: 'text/plain' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `roof-validation-report-${Date.now()}.txt`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
-      toast.success('Report downloaded!')
+      try {
+        console.log('🔄 Starting PDF download...')
+        console.log('📝 Validation data:', validationResult)
+        const loadingToast = toast.loading('Generating PDF report...')
+        
+        // Call the PDF generation endpoint
+        console.log('🌐 Calling endpoint: http://localhost:8000/generate-pdf-report')
+        const response = await fetch(`${'http://localhost:8000/generate-pdf-report'}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(validationResult)
+        })
+        
+        console.log('📡 Response status:', response.status)
+        console.log('📋 Response headers:', Object.fromEntries(response.headers.entries()))
+        
+        if (!response.ok) {
+          const errorText = await response.text()
+          console.error('❌ HTTP error response:', errorText)
+          toast.dismiss(loadingToast)
+          throw new Error(`HTTP error! status: ${response.status}, response: ${errorText}`)
+        }
+        
+        // Get the PDF blob
+        console.log('📄 Getting PDF blob...')
+        const blob = await response.blob()
+        console.log('✅ Blob received:', blob.size, 'bytes, type:', blob.type)
+        
+        // Create and download PDF
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `roof-compliance-report-${Date.now()}.pdf`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+        
+        console.log('🎉 PDF download completed!')
+        toast.dismiss(loadingToast)
+        toast.success('PDF report downloaded!')
+      } catch (error) {
+        console.error('💥 Error downloading PDF report:', error)
+        console.error('📚 Error details:', {
+          message: error.message,
+          stack: error.stack,
+          name: error.name
+        })
+        toast.error(`Failed to generate PDF report: ${error.message}`)
+        
+        // Fallback to text download if PDF generation fails
+        console.log('📝 Falling back to text download...')
+        const reportContent = validationResult.validation_report || 
+                             validationResult.compliance_report || 
+                             JSON.stringify(validationResult, null, 2)
+        
+        const blob = new Blob([reportContent], { type: 'text/plain' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `roof-validation-report-${Date.now()}.txt`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+        toast('Downloaded text report as fallback')
+      }
     }
   }
 
@@ -554,8 +607,8 @@ export default function UploadInterface({ onBack }: UploadInterfaceProps) {
                         }
                         
                         // Style validation checklist items with color coding
-                        if (/^(Sheathing|Rafter Spacing\/Spans|Fastening\/Connections|Underlayment|Insulation|Wind Resistance):\s*(COMPLIANT|NON-COMPLIANT|REQUIRES REVIEW|MISSING)/.test(cleanLine)) {
-                          const status = cleanLine.match(/:\s*(COMPLIANT|NON-COMPLIANT|REQUIRES REVIEW|MISSING)/)?.[1]
+                        if (/^(Sheathing|Rafter Spacing\/Spans|Fastening\/Connections|Underlayment|Insulation|Wind Resistance):\s*(COMPLIANT|NON-COMPLIANT|REQUIRES FURTHER REVIEW|MISSING)/.test(cleanLine)) {
+                          const status = cleanLine.match(/:\s*(COMPLIANT|NON-COMPLIANT|REQUIRES FURTHER REVIEW|MISSING)/)?.[1]
                           
                           let bgColor = 'bg-gray-50'
                           let borderColor = 'border-gray-200'
@@ -569,7 +622,7 @@ export default function UploadInterface({ onBack }: UploadInterfaceProps) {
                             bgColor = 'bg-red-50'
                             borderColor = 'border-red-300'
                             textColor = 'text-red-800'
-                          } else if (status === 'REQUIRES REVIEW') {
+                          } else if (status === 'REQUIRES FURTHER REVIEW') {
                             bgColor = 'bg-yellow-50'
                             borderColor = 'border-yellow-300'
                             textColor = 'text-yellow-800'

@@ -48,7 +48,7 @@ class BuildingCodeValidator:
             
             validation_prompt = f"""
 ROLE:
-You are a certified building code compliance expert for Florida Building Code – Residential (FBC-R) 2023, focused on Chapter 8 (Roof-Ceiling Construction) and Chapter 9 (Roof Assemblies/Wind). Task: validate the roof design below for code compliance.
+You are a certified building code compliance expert for Florida Building Code - Residential (FBC-R) 2023, focused on Chapter 8 (Roof-Ceiling Construction) and Chapter 9 (Roof Assemblies/Wind). Task: validate the roof design below for code compliance.
 
 INPUT (design to validate):
 {agent1_output}
@@ -58,7 +58,7 @@ STRICT BEHAVIOR:
 - STATUS rules per element:
   COMPLIANT = meets cited FBC-R requirement(s).
   NON-COMPLIANT = violates cited requirement(s).
-  REQUIRES REVIEW = element present but info is insufficient/ambiguous/contradictory OR exact code/table cannot be confirmed.
+  REQUIRES FURTHER REVIEW = element present but info is insufficient/ambiguous/contradictory OR exact code/table cannot be confirmed.
   MISSING = element not mentioned at all.
   N/A = not applicable per FBC-R (must cite why).
 - Always cite precise FBC-R section/table (e.g., “FBC-R 2023 R803.2.1; Table R802.4.1(1)”). Do not fabricate citations.
@@ -72,18 +72,18 @@ MINOR: Insulation (PROMOTE to SIGNIFICANT if condensation/ventilation control af
 OVERALL STATUS ALGORITHM (apply in order):
 1) If any CRITICAL is NON-COMPLIANT → OVERALL = NON-COMPLIANT.
 2) Else if any CRITICAL is MISSING → OVERALL = MISSING.
-3) Else if any CRITICAL is REQUIRES REVIEW → OVERALL = REQUIRES REVIEW.
+3) Else if any CRITICAL is REQUIRES FURTHER REVIEW → OVERALL = REQUIRES FURTHER REVIEW.
 4) Else if any SIGNIFICANT is NON-COMPLIANT:
      - If ≥2 SIGNIFICANT non-compliances → OVERALL = NON-COMPLIANT
-     - Else → OVERALL = REQUIRES REVIEW
+     - Else → OVERALL = REQUIRES FURTHER REVIEW
 5) Else if any SIGNIFICANT is MISSING → OVERALL = MISSING.
-6) Else if any SIGNIFICANT is REQUIRES REVIEW → OVERALL = REQUIRES REVIEW.
-7) Else if any MINOR is NON-COMPLIANT → OVERALL = REQUIRES REVIEW.
-8) Else if only MINOR are MISSING/REQUIRES REVIEW and all others are COMPLIANT/N/A → OVERALL = COMPLIANT.
+6) Else if any SIGNIFICANT is REQUIRES FURTHER REVIEW → OVERALL = REQUIRES FURTHER REVIEW.
+7) Else if any MINOR is NON-COMPLIANT → OVERALL = REQUIRES FURTHER REVIEW.
+8) Else if only MINOR are MISSING/REQUIRES FURTHER REVIEW and all others are COMPLIANT/N/A → OVERALL = COMPLIANT.
 
-MISSING vs REQUIRES REVIEW DECISION:
+MISSING vs REQUIRES FURTHER REVIEW DECISION:
 - If an element is not mentioned at all → MISSING.
-- If mentioned but key data is absent/unclear/contradictory (e.g., species/grade not given for span check; wind speed not stated; citation uncertain) → REQUIRES REVIEW with reason (“missing rafter grade”, “wind parameters not provided”, “exact table confirmation needed”).
+- If mentioned but key data is absent/unclear/contradictory (e.g., species/grade not given for span check; wind speed not stated; citation uncertain) → REQUIRES FURTHER REVIEW with reason (“missing rafter grade”, “wind parameters not provided”, “exact table confirmation needed”).
 - If wind parameters/site (Vult, exposure, HVHZ) are not present, mark Wind Resistance as MISSING.
 
 VALIDATION CHECKLIST (cite exact sections/tables):
@@ -95,7 +95,7 @@ VALIDATION CHECKLIST (cite exact sections/tables):
 - Wind Resistance (R301.2.1 and applicable uplift/roof covering sections incl. R905.x, connectors/load path as applicable)
 
 OUTPUT FORMAT (plain text only; exact structure):
-OVERALL STATUS: [COMPLIANT/NON-COMPLIANT/REQUIRES REVIEW/MISSING]
+OVERALL STATUS: [COMPLIANT/NON-COMPLIANT/REQUIRES FURTHER REVIEW/MISSING]
 
 ELEMENT ANALYSIS:
 Sheathing: [STATUS] - [FBC Reference] - [Brief analysis]
@@ -116,7 +116,7 @@ Professional Recommendations:
 - [Targeted engineering recs; e.g., connector upgrades, alternate fastening schedule, rafter size/species change, HVHZ-compliant underlayment]
 
 SUMMARY:
-[Overall assessment; list items marked MISSING; list reasons for any REQUIRES REVIEW; state if HVHZ/product-approval dependency elevated underlayment.]
+[Overall assessment; list items marked MISSING; list reasons for any REQUIRES FURTHER REVIEW; state if HVHZ/product-approval dependency elevated underlayment.]
 
             """
             
@@ -192,11 +192,11 @@ SCOPE & RULES
 - Status meanings:
   COMPLIANT = meets cited FBC-R requirement(s)
   NON-COMPLIANT = violates cited requirement(s)
-  REQUIRES REVIEW = present but info is insufficient/ambiguous/contradictory OR exact section/table cannot be confirmed
+  REQUIRES FURTHER REVIEW = present but info is insufficient/ambiguous/contradictory OR exact section/table cannot be confirmed
   MISSING = element not mentioned at all
   N/A = not applicable per FBC-R (must cite why)
 - Quote the design’s key values for this element before judging (e.g., “7/16 in OSB, 8d ring shank @ 6 in edge/field”).
-- Cite precise sections/tables (e.g., “FBC-R 2023 R803.2.1; Table R802.4.1(1)”). Do not fabricate. If exact citation cannot be confirmed, set REQUIRES REVIEW and say “Exact citation verification needed.”
+- Cite precise sections/tables (e.g., “FBC-R 2023 R803.2.1; Table R802.4.1(1)”). Do not fabricate. If exact citation cannot be confirmed, set REQUIRES FURTHER REVIEW and say “Exact citation verification needed.”
 
 TARGET SECTIONS BY ELEMENT (use the most relevant subset; do not list all):
 - sheathing → R803.* and related fastening tables
@@ -216,7 +216,7 @@ DATA NEEDED TO VALIDATE (mark each as “provided” or “missing” for this e
 
 OUTPUT (plain text only; exact structure):
 ELEMENT: {element_type}
-STATUS: [COMPLIANT/NON-COMPLIANT/REQUIRES REVIEW/MISSING/N/A]
+STATUS: [COMPLIANT/NON-COMPLIANT/REQUIRES FURTHER REVIEW/MISSING/N/A]
 
 DESIGN EVIDENCE:
 - [verbatim facts for this element only]
@@ -233,7 +233,7 @@ CODE CHECKS:
 FINAL DETERMINATION:
 - [one sentence explaining why the STATUS was set, referencing the most decisive check]
 
-CORRECTIONS (if NON-COMPLIANT or REQUIRES REVIEW):
+CORRECTIONS (if NON-COMPLIANT or REQUIRES FURTHER REVIEW):
 - [precise fix or info needed with section/table reference]
 
             """

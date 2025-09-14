@@ -43,7 +43,7 @@ export default function HomePage() {
     {
       icon: CloudArrowUpIcon,
       title: "Smart Image Analysis",
-      description: "Upload any roof design image, CAD file, or technical drawing. Our LLM's extracts every structural detail with precision.",
+      description: "Upload any roof design image, CAD file, or technical drawing. Using machine learning models, we extract every structural detail with precision.",
       color: "blue"
     },
     {
@@ -75,7 +75,7 @@ export default function HomePage() {
     {
       step: "02", 
       title: "AI Analysis",
-      description: "we extract structural specifications and dimensions using LLM's"
+      description: "we extract structural specifications and dimensions using machine learning models"
     },
     {
       step: "03",
@@ -105,7 +105,7 @@ export default function HomePage() {
                 <BuildingOfficeIcon className="h-8 w-8 text-white" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-gray-900">Roof Design validator</h1>
+                <h1 className="text-xl font-bold text-gray-900">Roof Design Validator</h1>
                 <p className="text-sm text-gray-500">AI-Powered Code Compliance</p>
               </div>
             </motion.div>
@@ -146,7 +146,7 @@ export default function HomePage() {
                 viewport={{ once: true }}
               >
                 <h2 className="text-4xl font-bold text-gray-900 mb-4">
-                  Why Choose <span className="text-gradient">Roof Design validator</span>?
+                  Why Choose <span className="text-gradient">Roof Design Validator</span>?
                 </h2>
                 <p className="text-xl text-gray-600 max-w-3xl mx-auto">
                   Leverage cutting-edge AI technology to streamline your building code compliance process.
@@ -241,7 +241,7 @@ export default function HomePage() {
                 <div className="p-2 bg-gradient-to-br from-primary-500 to-accent-500 rounded-lg">
                   <BuildingOfficeIcon className="h-6 w-6 text-white" />
                 </div>
-                <h3 className="text-xl font-bold">Roof Design validator</h3>
+                <h3 className="text-xl font-bold">Roof Design Validator</h3>
               </div>
               <p className="text-gray-400">
                 AI-powered building code compliance validation for roof designs.
@@ -284,7 +284,7 @@ export default function HomePage() {
           </div>
           
           <div className="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400">
-            <p>&copy; 2024 Roof Design validator. All rights reserved.</p>
+            <p>&copy; 2024 Roof Design Validator. All rights reserved.</p>
           </div>
         </div>
       </footer>

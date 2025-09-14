@@ -3,14 +3,17 @@ PDF Report Generator
 Creates professional compliance reports from validation results
 """
 
-from reportlab.lib.pagesizes import letter, A4
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, KeepTogether
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.lib import colors
-from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_JUSTIFY
+from reportlab.lib.enums import TA_CENTER, TA_LEFT
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 from datetime import datetime
 import io
+import re
 from typing import Dict, Any, Optional
 
 class ComplianceReportGenerator:
@@ -22,67 +25,145 @@ class ComplianceReportGenerator:
         self.styles = getSampleStyleSheet()
         self._setup_custom_styles()
     
-    def _setup_custom_styles(self):
-        """Set up custom styles for the report"""
+    def _to_pascal_case(self, text: str) -> str:
+        """Convert text to PascalCase separated by spaces"""
+        # Remove asterisks and colons
+        clean_text = text.replace('*', '').strip()
         
-        # Title style
+        # Split by spaces and capitalize each word
+        words = clean_text.split()
+        pascal_words = []
+        
+        for word in words:
+            # Handle special cases
+            if word.upper() in ['OSB', 'GYP', 'BD', 'FBC', 'HVHZ', 'O.C.', 'L.V.L.', 'MTL']:
+                pascal_words.append(word.upper())
+            elif word.lower() in ['and', 'or', 'at', 'with', 'per', 'as', 'of', 'in', 'on', 'to', 'for']:
+                pascal_words.append(word.lower())
+            else:
+                pascal_words.append(word.capitalize())
+        
+        return ' '.join(pascal_words)
+    
+    def _setup_custom_styles(self):
+        """Set up custom styles for the report with Arial font"""
+        
+        # Title style (16pt Arial Bold)
         self.styles.add(ParagraphStyle(
             name='CustomTitle',
             parent=self.styles['Heading1'],
-            fontSize=24,
-            spaceAfter=30,
+            fontSize=16,
+            spaceAfter=12,
             alignment=TA_CENTER,
-            textColor=colors.Color(0.1, 0.3, 0.6)  # Primary blue
+            textColor=colors.Color(0.1, 0.3, 0.6),  # Primary blue
+            fontName='Helvetica-Bold'  # Using Helvetica as Arial equivalent
         ))
         
-        # Section header style
+        # Section header style (13pt Bold - numbered sections in blue)
         self.styles.add(ParagraphStyle(
             name='SectionHeader',
             parent=self.styles['Heading2'],
-            fontSize=16,
-            spaceBefore=20,
-            spaceAfter=12,
-            textColor=colors.Color(0.2, 0.2, 0.2),
-            borderWidth=1,
-            borderColor=colors.Color(0.8, 0.8, 0.8),
-            borderPadding=5
+            fontSize=13,
+            fontName='Helvetica-Bold',
+            textColor=colors.Color(0.133, 0.4, 0.8),      # blue-600
+            spaceBefore=16,
+            spaceAfter=8,
+            alignment=TA_LEFT,
+            leading=19.5  # 1.5 line spacing
         ))
         
-        # Compliance status styles
+        # Subsection header style (12pt Bold) - with bullet (•)
+        self.styles.add(ParagraphStyle(
+            name='SubHeader',
+            parent=self.styles['Normal'],
+            fontSize=12,
+            fontName='Helvetica-Bold',
+            textColor=colors.Color(0.2, 0.2, 0.2),        # dark gray
+            spaceBefore=8,
+            spaceAfter=4,
+            alignment=TA_LEFT,
+            leftIndent=24,  # Indent for sub headings
+            leading=18      # 1.5 line spacing
+        ))
+        
+        # Content style (11pt) - for content under subheadings with circle bullets (○)
+        self.styles.add(ParagraphStyle(
+            name='ContentBullet',
+            parent=self.styles['Normal'],
+            fontSize=11,
+            fontName='Helvetica',
+            textColor=colors.Color(0.3, 0.3, 0.3),        # gray-600
+            spaceBefore=2,
+            spaceAfter=2,
+            leading=16.5,  # 1.5 line spacing (11pt * 1.5)
+            alignment=TA_LEFT,
+            leftIndent=48,  # More indent for content
+            keepWithNext=1  # Prevent orphan lines
+        ))
+        
+        # Regular content (11pt Arial) with 1.5 line spacing
+        self.styles.add(ParagraphStyle(
+            name='Content',
+            parent=self.styles['Normal'],
+            fontSize=11,
+            fontName='Helvetica',
+            textColor=colors.Color(0.3, 0.3, 0.3),        # gray-600
+            spaceBefore=2,
+            spaceAfter=2,
+            leading=16.5,  # 1.5 line spacing (11pt * 1.5)
+            alignment=TA_LEFT,
+            keepWithNext=1  # Prevent orphan lines
+        ))
+        
+        # Compliance status styles with 1.5 line spacing
         self.styles.add(ParagraphStyle(
             name='Compliant',
             parent=self.styles['Normal'],
-            fontSize=12,
-            textColor=colors.green,
-            fontName='Helvetica-Bold'
+            fontSize=11,
+            textColor=colors.Color(0.133, 0.545, 0.133),  # green-800
+            fontName='Helvetica-Bold',
+            leading=16.5,  # 1.5 line spacing (11pt * 1.5)
+            keepWithNext=1  # Prevent orphan lines
         ))
         
         self.styles.add(ParagraphStyle(
             name='NonCompliant',
             parent=self.styles['Normal'],
-            fontSize=12,
-            textColor=colors.red,
-            fontName='Helvetica-Bold'
+            fontSize=11,
+            textColor=colors.Color(0.6, 0.133, 0.133),    # red-800
+            fontName='Helvetica-Bold',
+            leading=16.5,  # 1.5 line spacing (11pt * 1.5)
+            keepWithNext=1  # Prevent orphan lines
         ))
         
         self.styles.add(ParagraphStyle(
             name='Review',
             parent=self.styles['Normal'],
-            fontSize=12,
-            textColor=colors.orange,
-            fontName='Helvetica-Bold'
+            fontSize=11,
+            textColor=colors.Color(0.6, 0.4, 0.133),      # yellow-800
+            fontName='Helvetica-Bold',
+            leading=16.5,  # 1.5 line spacing (11pt * 1.5)
+            keepWithNext=1  # Prevent orphan lines
+        ))
+        
+        self.styles.add(ParagraphStyle(
+            name='Missing',
+            parent=self.styles['Normal'],
+            fontSize=11,
+            textColor=colors.Color(0.6, 0.267, 0.133),    # orange-800
+            fontName='Helvetica-Bold',
+            leading=16.5,  # 1.5 line spacing (11pt * 1.5)
+            keepWithNext=1  # Prevent orphan lines
         ))
     
     def generate_report(self, 
                        validation_data: Dict[str, Any], 
-                       filename: Optional[str] = None,
                        project_info: Optional[Dict] = None) -> bytes:
         """
         Generate a complete compliance report PDF
         
         Args:
             validation_data: Results from roof validation process
-            filename: Optional custom filename
             project_info: Optional project metadata
             
         Returns:
@@ -108,17 +189,8 @@ class ComplianceReportGenerator:
         # Header
         story.extend(self._build_header(project_info))
         
-        # Executive Summary
+        # Main content (combines all sections like UI preview)
         story.extend(self._build_executive_summary(validation_data))
-        
-        # Design Analysis Section
-        story.extend(self._build_design_analysis(validation_data))
-        
-        # Code Validation Section  
-        story.extend(self._build_code_validation(validation_data))
-        
-        # Recommendations Section
-        story.extend(self._build_recommendations(validation_data))
         
         # Footer
         story.extend(self._build_footer(validation_data))
@@ -133,123 +205,180 @@ class ComplianceReportGenerator:
         return pdf_bytes
     
     def _build_header(self, project_info: Optional[Dict] = None) -> list:
-        """Build report header section"""
+        """Build header section with table (no report ID)"""
         story = []
         
         # Title
         story.append(Paragraph("ROOF DESIGN COMPLIANCE REPORT", self.styles['CustomTitle']))
-        story.append(Spacer(1, 20))
+        story.append(Spacer(1, 8))
         
-        # Project info table
-        if project_info:
-            data = [
-                ['Project Name:', project_info.get('name', 'N/A')],
-                ['Location:', project_info.get('location', 'N/A')], 
-                ['Architect:', project_info.get('architect', 'N/A')],
-                ['Report Date:', datetime.now().strftime('%B %d, %Y')],
-                ['Report ID:', f"RV-{datetime.now().strftime('%Y%m%d-%H%M%S')}"]
-            ]
-        else:
-            data = [
-                ['Report Date:', datetime.now().strftime('%B %d, %Y')],
-                ['Report ID:', f"RV-{datetime.now().strftime('%Y%m%d-%H%M%S')}"],
-                ['Generated By:', 'RoofValidator AI System'],
-                ['Code Reference:', 'Florida Building Code 2023']
-            ]
+        # Header info table without Report ID
+        data = [
+            ['Report Date:', datetime.now().strftime('%B %d, %Y')],
+            ['Generated By:', 'Roof Design Validator'],
+            ['Code Reference:', 'Florida Residential Building Code 2023']
+        ]
         
         table = Table(data, colWidths=[2*inch, 4*inch])
         table.setStyle(TableStyle([
             ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
             ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
             ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
-            ('FONTSIZE', (0, 0), (-1, -1), 10),
+            ('FONTSIZE', (0, 0), (-1, -1), 11),
             ('GRID', (0, 0), (-1, -1), 1, colors.lightgrey),
-            ('BACKGROUND', (0, 0), (0, -1), colors.Color(0.9, 0.9, 0.9))
+            ('BACKGROUND', (0, 0), (0, -1), colors.Color(0.9, 0.9, 0.9)),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6)
         ]))
         
         story.append(table)
-        story.append(Spacer(1, 30))
+        story.append(Spacer(1, 12))
         
         return story
     
     def _build_executive_summary(self, validation_data: Dict[str, Any]) -> list:
-        """Build executive summary section"""
+        """Build executive summary section with hierarchical structure"""
         story = []
         
-        story.append(Paragraph("EXECUTIVE SUMMARY", self.styles['SectionHeader']))
+        # Parse the validation report to match UI structure exactly
+        validation_report = validation_data.get('validation_report', '')
         
-        # Overall compliance status
-        overall_status = self._determine_overall_status(validation_data)
-        status_style = self._get_status_style(overall_status)
+        # Process the report line by line like the UI does
+        lines = validation_report.split('\n')
         
-        story.append(Paragraph(f"<b>Overall Compliance Status:</b> <font color='{self._get_status_color(overall_status)}'>{overall_status}</font>", self.styles['Normal']))
-        story.append(Spacer(1, 12))
+        # Section counter for numbering
+        section_counter = 0
         
-        # Summary text
-        summary_text = self._generate_summary_text(validation_data)
-        story.append(Paragraph(summary_text, self.styles['Normal']))
-        story.append(Spacer(1, 20))
-        
+        for line in lines:
+            line = line.strip()
+            if not line:
+                story.append(Spacer(1, 3))
+                continue
+                
+            # Clean line of markdown formatting and remove quotes
+            clean_line = re.sub(r'\*\*([^*]+)\*\*', r'\1', line)
+            clean_line = re.sub(r'<[^>]*>', '', clean_line)
+            # Remove quotes around specifications (e.g., "24" O.C." becomes 24 O.C.")
+            clean_line = re.sub(r'"([^"]*)"', r'\1', clean_line)
+            # Remove any remaining quotes
+            clean_line = re.sub(r"'([^']*)'", r'\1', clean_line)
+            # Remove trailing quotes at end of sentences
+            clean_line = re.sub(r'["\']+$', '', clean_line)
+            # Remove escaped quotes
+            clean_line = clean_line.replace('\\"', '').replace("\\'", '')
+            # Clean up any double spaces
+            clean_line = re.sub(r'\s+', ' ', clean_line).strip()
+            
+            # Check for main section headers - convert to PascalCase and number them
+            if re.match(r'^###\s*(.+)$', line) or \
+               re.match(r'^\*\*(VALIDATION CHECKLIST|SUMMARY):\*\*\s*$', line) or \
+               re.match(r'^(TECHNICAL SPECIFICATIONS|COMPLIANCE ASSESSMENT|CRITICAL FINDINGS|SUMMARY|OVERALL STATUS)', clean_line):
+                
+                display_text = re.sub(r'^###\s*', '', line)
+                display_text = re.sub(r'^\*\*(.+):\*\*\s*$', r'\1', display_text)  # Remove colon for sections
+                display_text = display_text.rstrip(':')  # Remove any trailing colon
+                
+                # Convert to PascalCase
+                pascal_text = self._to_pascal_case(display_text)
+                
+                # Number the section
+                section_counter += 1
+                numbered_text = f"{section_counter}. {pascal_text}"
+                
+                story.append(Paragraph(numbered_text, self.styles['SectionHeader']))
+                continue
+                
+            # Check for subsection headers - make them bulleted and convert to PascalCase with colon
+            if re.match(r'^\*\*([^*]+):\*\*\s*$', line) or \
+               re.match(r'^(DIMENSIONS FOUND|MATERIALS IDENTIFIED|SLOPE/PITCH DETAILS|STRUCTURAL ELEMENTS|CRITICAL FINDINGS|REQUIRED CORRECTIONS):$', clean_line):
+                
+                display_text = re.sub(r'^\*\*(.+):\*\*\s*$', r'\1', line)  # Remove markdown
+                display_text = display_text.rstrip(':')  # Remove existing colon
+                
+                # Convert to PascalCase and add bullet point with colon (larger, more noticeable bullet)
+                pascal_text = self._to_pascal_case(display_text)
+                bulleted_text = f"<font size=16><b>•</b></font> {pascal_text}:"
+                story.append(Paragraph(bulleted_text, self.styles['SubHeader']))
+                continue
+                
+            # Check for content that should be indented (starts with -)
+            if clean_line.startswith('-') and not re.match(r'^(Sheathing|Rafter Spacing/Spans|Fastening/Connections|Underlayment|Insulation|Wind Resistance):', clean_line):
+                # Remove the dash and indent the content with small, subtle hollow circle bullet
+                indented_text = clean_line[1:].strip()
+                story.append(Paragraph(f"<font size=11>-</font> {indented_text}", self.styles['ContentBullet']))
+                continue
+                
+            # Check for validation checklist items with color coding
+            checklist_match = re.match(r'^(Sheathing|Rafter Spacing/Spans|Fastening/Connections|Underlayment|Insulation|Wind Resistance):\s*(COMPLIANT|NON-COMPLIANT|REQUIRES FURTHER REVIEW|MISSING)', clean_line)
+            if checklist_match:
+                _, status = checklist_match.groups()
+                
+                # Get appropriate style and background color based on status
+                if status == 'COMPLIANT':
+                    style_name = 'Compliant'
+                    bg_color = colors.Color(0.9, 0.98, 0.9)        # light green
+                    border_color = colors.Color(0.2, 0.7, 0.2)     # green border
+                elif status == 'NON-COMPLIANT':
+                    style_name = 'NonCompliant'
+                    bg_color = colors.Color(0.98, 0.9, 0.9)        # light red
+                    border_color = colors.Color(0.8, 0.2, 0.2)     # red border
+                elif status == 'REQUIRES FURTHER REVIEW':
+                    style_name = 'Review'
+                    bg_color = colors.Color(0.98, 0.96, 0.87)      # light yellow
+                    border_color = colors.Color(0.8, 0.6, 0.133)   # yellow border
+                elif status == 'MISSING':
+                    style_name = 'Missing'
+                    bg_color = colors.Color(0.95, 0.95, 0.95)      # light gray
+                    border_color = colors.Color(0.5, 0.5, 0.5)     # gray border
+                else:
+                    style_name = 'Normal'
+                    bg_color = colors.white
+                    border_color = colors.black
+                
+                # Create a table with filled background and rounded appearance
+                validation_table = Table([[Paragraph(clean_line, self.styles[style_name])]], 
+                                       colWidths=[7.5*inch])
+                validation_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, -1), bg_color),
+                    ('BOX', (0, 0), (-1, -1), 1.5, border_color),
+                    ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                    ('LEFTPADDING', (0, 0), (-1, -1), 12),
+                    ('RIGHTPADDING', (0, 0), (-1, -1), 12),
+                    ('TOPPADDING', (0, 0), (-1, -1), 10),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
+                    ('ROUNDEDCORNERS', [3, 3, 3, 3]),  # Add rounded corners
+                ]))
+                
+                story.append(validation_table)
+                continue
+                
+            # Regular content
+            if clean_line:
+                story.append(Paragraph(clean_line, self.styles['Content']))
+                
         return story
     
-    def _build_design_analysis(self, validation_data: Dict[str, Any]) -> list:
-        """Build design analysis section"""
-        story = []
-        
-        story.append(Paragraph("DESIGN ANALYSIS", self.styles['SectionHeader']))
-        
-        # Add analysis content
-        if 'analysis' in validation_data:
-            analysis_text = validation_data['analysis']
-            # Split into paragraphs for better formatting
-            paragraphs = analysis_text.split('\n\n')
-            for para in paragraphs:
-                if para.strip():
-                    story.append(Paragraph(para.strip(), self.styles['Normal']))
-                    story.append(Spacer(1, 12))
-        
-        story.append(Spacer(1, 20))
-        return story
+    def _build_design_analysis(self, _: Dict[str, Any]) -> list:
+        """Build design analysis section - this is now integrated into the main report parsing"""
+        # This method is kept for compatibility but content is handled in _build_executive_summary
+        return []
     
-    def _build_code_validation(self, validation_data: Dict[str, Any]) -> list:
-        """Build code validation section"""
-        story = []
-        
-        story.append(Paragraph("BUILDING CODE VALIDATION", self.styles['SectionHeader']))
-        
-        # Add validation report content
-        if 'validation_report' in validation_data:
-            validation_text = validation_data['validation_report']
-            # Split into sections for better formatting
-            sections = validation_text.split('\n\n')
-            for section in sections:
-                if section.strip():
-                    story.append(Paragraph(section.strip(), self.styles['Normal']))
-                    story.append(Spacer(1, 12))
-        
-        story.append(Spacer(1, 20))
-        return story
+    def _build_code_validation(self, _: Dict[str, Any]) -> list:
+        """Build code validation section - this is now integrated into the main report parsing"""
+        # This method is kept for compatibility but content is handled in _build_executive_summary
+        return []
     
-    def _build_recommendations(self, validation_data: Dict[str, Any]) -> list:
-        """Build recommendations section"""
-        story = []
-        
-        story.append(Paragraph("RECOMMENDATIONS", self.styles['SectionHeader']))
-        
-        # Generate recommendations based on validation results
-        recommendations = self._generate_recommendations(validation_data)
-        
-        for i, rec in enumerate(recommendations, 1):
-            story.append(Paragraph(f"{i}. {rec}", self.styles['Normal']))
-            story.append(Spacer(1, 8))
-        
-        story.append(Spacer(1, 20))
-        return story
+    def _build_recommendations(self, _: Dict[str, Any]) -> list:
+        """Build recommendations section - now integrated into main report parsing"""
+        # This method is kept for compatibility but content is handled in _build_executive_summary
+        return []
     
     def _build_footer(self, validation_data: Dict[str, Any]) -> list:
-        """Build report footer"""
+        """Build simplified report footer"""
         story = []
         
+        story.append(Spacer(1, 12))
         story.append(Paragraph("DISCLAIMER", self.styles['SectionHeader']))
         
         disclaimer = """
@@ -262,58 +391,21 @@ class ComplianceReportGenerator:
         
         story.append(Paragraph(disclaimer, self.styles['Normal']))
         
-        # Processing metadata
-        if 'processing_time' in validation_data:
-            story.append(Spacer(1, 20))
-            story.append(Paragraph(f"Report generated in {validation_data['processing_time']:.2f} seconds", 
-                                 self.styles['Normal']))
-        
         return story
     
     def _determine_overall_status(self, validation_data: Dict[str, Any]) -> str:
-        """Determine overall compliance status"""
-        # This would analyze the validation results to determine overall status
-        # For now, return a default status
-        if validation_data.get('success', False):
-            return "COMPLIANT"
+        """Determine overall compliance status from validation report"""
+        validation_report = validation_data.get('validation_report', '')
+        
+        # Look for overall status in the report
+        if 'OVERALL STATUS: COMPLIANT' in validation_report:
+            return 'COMPLIANT'
+        elif 'OVERALL STATUS: NON-COMPLIANT' in validation_report:
+            return 'NON-COMPLIANT'
+        elif 'OVERALL STATUS: REQUIRES REVIEW' in validation_report or 'OVERALL STATUS: REQUIRES FURTHER REVIEW' in validation_report:
+            return 'REQUIRES REVIEW'
+        elif 'OVERALL STATUS: MISSING' in validation_report:
+            return 'MISSING'
         else:
-            return "NON-COMPLIANT"
-    
-    def _get_status_style(self, status: str) -> str:
-        """Get appropriate style for status"""
-        status_upper = status.upper()
-        if 'COMPLIANT' in status_upper and 'NON' not in status_upper:
-            return 'Compliant'
-        elif 'NON-COMPLIANT' in status_upper:
-            return 'NonCompliant'
-        else:
-            return 'Review'
-    
-    def _get_status_color(self, status: str) -> str:
-        """Get color for status text"""
-        status_upper = status.upper()
-        if 'COMPLIANT' in status_upper and 'NON' not in status_upper:
-            return 'green'
-        elif 'NON-COMPLIANT' in status_upper:
-            return 'red'
-        else:
-            return 'orange'
-    
-    def _generate_summary_text(self, validation_data: Dict[str, Any]) -> str:
-        """Generate executive summary text"""
-        return """
-        This report presents the automated building code compliance analysis for the submitted 
-        roof design. The analysis was performed using advanced AI technology that examines 
-        structural specifications against Florida Building Code requirements. All findings 
-        and recommendations should be reviewed by qualified professionals.
-        """
-    
-    def _generate_recommendations(self, validation_data: Dict[str, Any]) -> list:
-        """Generate recommendations based on validation results"""
-        return [
-            "Review all flagged items with a licensed structural engineer",
-            "Verify material specifications meet local building code requirements", 
-            "Ensure all connections and fastening schedules are properly detailed",
-            "Submit revised drawings addressing any non-compliant items",
-            "Schedule follow-up review after implementing recommendations"
-        ]
+            # Fallback based on success flag
+            return 'COMPLIANT' if validation_data.get('success', False) else 'REQUIRES REVIEW'

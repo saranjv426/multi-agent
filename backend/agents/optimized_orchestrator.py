@@ -126,7 +126,7 @@ STRUCTURAL ELEMENTS:
 STATUS DEFINITIONS:
 - COMPLIANT = meets cited FBC-R requirement(s)
 - NON-COMPLIANT = violates cited requirement(s)  
-- REQUIRES REVIEW = element present but info insufficient/ambiguous OR exact code confirmation needed
+- REQUIRES FURTHER REVIEW = element present but info insufficient/ambiguous OR exact code confirmation needed
 - MISSING = element not mentioned at all
 - N/A = not applicable per FBC-R (cite why)
 
@@ -142,7 +142,7 @@ Insulation: [STATUS] - [FBC-R reference] - [Brief analysis]; Evidence=[exact quo
 
 Wind Resistance: [STATUS] - [FBC-R reference] - [Brief analysis]; Evidence=[exact quote]
 
-**OVERALL STATUS:** [COMPLIANT/NON-COMPLIANT/REQUIRES REVIEW/MISSING]
+**OVERALL STATUS:** [COMPLIANT/NON-COMPLIANT/REQUIRES FURTHER REVIEW/MISSING]
 
 **CRITICAL FINDINGS:**
 - [List critical issues with exact FBC-R citations]
