@@ -110,11 +110,9 @@ def main():
     if not check_environment():
         sys.exit(1)
     
-    # Install dependencies
-    if not install_dependencies():
-        print("Dependency installation failed. Please install manually:")
-        print("pip install -r requirements.txt")
-        sys.exit(1)
+    # Skip automatic dependency installation for conda environments
+    print("Skipping automatic dependency installation...")
+    print("Make sure you have installed dependencies manually with conda/pip")
     
     # Start server
     start_server()

@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import { Toaster } from 'react-hot-toast'
+import { AuthProvider } from '@/components/auth/AuthProvider'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -21,17 +22,19 @@ export default function RootLayout({
   return (
     <html lang="en" className="scroll-smooth">
       <body className={`${inter.className} antialiased bg-gray-50 text-gray-900`}>
-        {children}
-        <Toaster 
-          position="top-right"
-          toastOptions={{
-            duration: 4000,
-            style: {
-              background: '#1f2937',
-              color: '#f9fafb',
-            },
-          }}
-        />
+        <AuthProvider>
+          {children}
+          <Toaster 
+            position="top-right"
+            toastOptions={{
+              duration: 4000,
+              style: {
+                background: '#1f2937',
+                color: '#f9fafb',
+              },
+            }}
+          />
+        </AuthProvider>
       </body>
     </html>
   )

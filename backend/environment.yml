@@ -1,0 +1,44 @@
+name: agent_env
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11.13
+  # FastAPI Backend Dependencies
+  - fastapi=0.104.1
+  - uvicorn=0.24.0
+  - pydantic=2.5.0
+  
+  # OpenAI API
+  - openai=1.3.0
+  
+  # Image Processing
+  - pillow=10.1.0
+  
+  # Additional utilities
+  - python-dotenv=1.0.0
+  - typing-extensions=4.8.0
+  
+  # PDF Generation
+  - reportlab=4.0.8
+  
+  # Email validation
+  - email-validator=2.1.0
+  
+  # Development dependencies
+  - pytest=7.4.3
+  - httpx=0.25.2
+  
+  # Dependencies that need pip (not available in conda)
+  - pip
+  - pip:
+    - python-multipart==0.0.6
+    - weasyprint==60.2
+    - psycopg2-binary==2.9.9
+    - sqlalchemy==2.0.23
+    - pyjwt==2.8.0
+    - passlib[bcrypt]==1.7.4
+    - python-jose[cryptography]==3.3.0
+    - resend==2.3.0
+    - dnspython==2.8.0
+

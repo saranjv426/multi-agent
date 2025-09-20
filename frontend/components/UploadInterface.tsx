@@ -156,13 +156,21 @@ export default function UploadInterface({ onBack }: UploadInterfaceProps) {
       const formData = new FormData()
       formData.append('file', uploadedFile)
       
+      // Get auth token
+      const token = localStorage.getItem('access_token')
+      const headers: Record<string, string> = {
+        'Content-Type': 'multipart/form-data',
+      }
+      
+      if (token) {
+        headers.Authorization = `Bearer ${token}`
+      }
+
       const response = await axios.post(
         `${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'}/api/validation/validate-optimized`,
         formData,
         {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
+          headers,
           timeout: 60000, // 60 second timeout
         }
       )

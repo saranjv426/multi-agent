@@ -17,6 +17,9 @@ import HeroSection from '@/components/HeroSection'
 import FeatureCard from '@/components/FeatureCard'
 import UploadInterface from '@/components/UploadInterface'
 import StatsSection from '@/components/StatsSection'
+import AuthModal from '@/components/auth/AuthModal'
+import UserMenu from '@/components/UserMenu'
+import { useAuth } from '@/components/auth/AuthProvider'
 
 type FeatureColor = 'blue' | 'green' | 'purple' | 'orange'
 
@@ -30,13 +33,51 @@ interface Feature {
 export default function HomePage() {
   const [isUploadMode, setIsUploadMode] = useState(false)
   const [mounted, setMounted] = useState(false)
+  const [showAuthModal, setShowAuthModal] = useState(false)
+  const [authModalTab, setAuthModalTab] = useState<'login' | 'signup'>('login')
+  
+  const { isAuthenticated, isLoading } = useAuth()
 
   useEffect(() => {
     setMounted(true)
   }, [])
 
-  if (!mounted) {
-    return null // Prevent hydration mismatch
+  // Redirect to landing page when user logs out while on dashboard
+  useEffect(() => {
+    if (mounted && !isLoading && !isAuthenticated && isUploadMode) {
+      setIsUploadMode(false)
+    }
+  }, [isAuthenticated, isLoading, mounted, isUploadMode])
+
+  if (!mounted || isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary-600 border-t-transparent"></div>
+      </div>
+    )
+  }
+
+  const handleStartValidation = () => {
+    if (isAuthenticated) {
+      setIsUploadMode(true)
+    } else {
+      setAuthModalTab('login')
+      setShowAuthModal(true)
+    }
+  }
+
+  const handleGetStarted = () => {
+    if (isAuthenticated) {
+      setIsUploadMode(true)
+    } else {
+      setAuthModalTab('signup')
+      setShowAuthModal(true)
+    }
+  }
+
+  const handleAuthSuccess = () => {
+    setShowAuthModal(false)
+    setIsUploadMode(true)
   }
 
   const features: Feature[] = [
@@ -110,18 +151,37 @@ export default function HomePage() {
               </div>
             </motion.div>
             
-            {/* <motion.div
+            <motion.div
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.5, delay: 0.2 }}
               className="flex items-center space-x-4"
             >
-              <span className="text-sm text-gray-600">Powered by</span>
-              <div className="flex items-center space-x-2 px-3 py-1 bg-gray-100 rounded-full">
-                <SparklesIcon className="h-4 w-4 text-yellow-500" />
-                <span className="text-sm font-semibold text-gray-700">GPT-4o</span>
-              </div>
-            </motion.div> */}
+              {isAuthenticated ? (
+                <UserMenu />
+              ) : (
+                <div className="flex items-center space-x-3">
+                  <button
+                    onClick={() => {
+                      setAuthModalTab('login')
+                      setShowAuthModal(true)
+                    }}
+                    className="text-sm text-gray-600 hover:text-gray-900 font-medium"
+                  >
+                    Sign In
+                  </button>
+                  <button
+                    onClick={() => {
+                      setAuthModalTab('signup')
+                      setShowAuthModal(true)
+                    }}
+                    className="btn-primary text-sm px-4 py-2"
+                  >
+                    Sign Up
+                  </button>
+                </div>
+              )}
+            </motion.div>
           </div>
         </div>
       </nav>
@@ -130,7 +190,7 @@ export default function HomePage() {
       {!isUploadMode ? (
         <>
           {/* Hero Section */}
-          <HeroSection onStartValidation={() => setIsUploadMode(true)} />
+          <HeroSection onStartValidation={handleStartValidation} />
 
           {/* Stats Section */}
           <StatsSection />
@@ -218,7 +278,7 @@ export default function HomePage() {
                 viewport={{ once: true }}
               >
                 <button
-                  onClick={() => setIsUploadMode(true)}
+                  onClick={handleGetStarted}
                   className="btn-primary inline-flex items-center space-x-2 text-lg px-8 py-4"
                 >
                   <span>Get Started Now</span>
@@ -288,6 +348,14 @@ export default function HomePage() {
           </div>
         </div>
       </footer>
+
+      {/* Authentication Modal */}
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        defaultTab={authModalTab}
+        onSuccess={handleAuthSuccess}
+      />
     </div>
   )
 }

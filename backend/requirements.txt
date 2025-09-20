@@ -18,6 +18,21 @@ typing-extensions==4.8.0
 reportlab==4.0.8
 weasyprint==60.2
 
+# Database
+psycopg2-binary==2.9.9
+sqlalchemy==2.0.23
+
+# Authentication & Security
+pyjwt==2.8.0
+passlib[bcrypt]==1.7.4
+python-jose[cryptography]==3.3.0
+
+# Email validation
+email-validator==2.1.0
+
+# Email service (for password reset)
+resend==2.3.0
+
 # Development dependencies
 pytest==7.4.3
 httpx==0.25.2

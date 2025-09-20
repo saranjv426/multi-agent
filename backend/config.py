@@ -15,27 +15,32 @@ load_dotenv()
 class Config:
     """Application configuration settings"""
     
-    # Navigator AI Configuration
+    # Required parameters (no defaults)
     navigator_api_key: str
-    navigator_base_url: str = "https://api.ai.it.ufl.edu"
+    database_url: str
+    jwt_secret_key: str
     
-    # Server Configuration
+    # Optional parameters (with defaults)
+    navigator_base_url: str = "https://api.ai.it.ufl.edu"
     host: str = "127.0.0.1"
     port: int = 8000
     debug: bool = True
     environment: str = "development"
-    
-    # CORS Configuration
     allowed_origins: list = None
-    
-    # Cost Tracking
     track_api_costs: bool = True
     log_level: str = "INFO"
+    frontend_url: str = "http://localhost:3000"
     
     def __post_init__(self):
         """Validate configuration after initialization"""
         if not self.navigator_api_key:
             raise ValueError("NAVIGATOR_API_KEY is required but not set")
+        
+        if not self.database_url:
+            raise ValueError("DATABASE_URL is required but not set")
+        
+        if not self.jwt_secret_key:
+            raise ValueError("JWT_SECRET_KEY is required but not set")
         
         if self.allowed_origins is None:
             self.allowed_origins = [
@@ -62,16 +67,35 @@ def get_config() -> Config:
             "Please set it in your .env file or environment."
         )
     
+    # Database configuration
+    database_url = os.getenv("DATABASE_URL")
+    if not database_url:
+        raise ValueError(
+            "DATABASE_URL environment variable is required. "
+            "Please set it in your .env file or environment."
+        )
+    
+    # JWT Secret configuration
+    jwt_secret_key = os.getenv("JWT_SECRET_KEY")
+    if not jwt_secret_key:
+        raise ValueError(
+            "JWT_SECRET_KEY environment variable is required. "
+            "Please set it in your .env file or environment."
+        )
+    
     # Optional configuration with defaults
     config = Config(
         navigator_api_key=navigator_api_key,
         navigator_base_url=os.getenv("NAVIGATOR_BASE_URL", "https://api.ai.it.ufl.edu"),
+        database_url=database_url,
+        jwt_secret_key=jwt_secret_key,
         host=os.getenv("HOST", "0.0.0.0"),  # Changed for cloud deployment
         port=int(os.getenv("PORT", "8000")),
         debug=os.getenv("DEBUG", "false").lower() == "true",  # Changed default for production
         environment=os.getenv("ENVIRONMENT", "production"),  # Changed default
         track_api_costs=os.getenv("TRACK_API_COSTS", "true").lower() == "true",
-        log_level=os.getenv("LOG_LEVEL", "INFO")
+        log_level=os.getenv("LOG_LEVEL", "INFO"),
+        frontend_url=os.getenv("FRONTEND_URL", "http://localhost:3000")
     )
     
     # Parse allowed origins - more flexible for cloud deployment

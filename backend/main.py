@@ -3,7 +3,7 @@ FastAPI Backend for Roof Design Validation System
 RESTful API server for coordinating GPT-4o based validation workflow
 """
 
-from fastapi import FastAPI, File, UploadFile, HTTPException, BackgroundTasks
+from fastapi import FastAPI, File, UploadFile, HTTPException, BackgroundTasks, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from typing import Optional, Dict, Any
@@ -16,6 +16,9 @@ from agents.orchestrator import RoofValidationOrchestrator
 from agents.optimized_orchestrator import OptimizedRoofValidator
 from config import settings
 from utils.pdf_generator import ComplianceReportGenerator
+from auth.routes import router as auth_router, init_auth_service
+from auth.middleware import require_auth, set_auth_service
+from database.connection import init_database
 
 # Configure logging
 logging.basicConfig(
@@ -40,6 +43,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Include authentication routes
+app.include_router(auth_router)
+
 # Global instances
 orchestrator = None
 optimized_validator = None
@@ -47,7 +53,7 @@ pdf_generator = ComplianceReportGenerator()
 
 @app.on_event("startup")
 async def startup_event():
-    """Initialize the orchestrator with OpenAI API key."""
+    """Initialize the orchestrator and authentication system."""
     global orchestrator, optimized_validator
     
     logger.info("Starting Roof Design Validation API...")
@@ -55,12 +61,29 @@ async def startup_event():
     logger.info(f"Cost Tracking: {'Enabled' if settings.track_api_costs else 'Disabled'}")
     
     try:
+        # Initialize database
+        logger.info("🗄️ Initializing database...")
+        db_connected = init_database()
+        if db_connected:
+            logger.info("✅ Database initialized successfully")
+        else:
+            logger.error("❌ Database connection failed")
+            raise Exception("Database initialization failed")
+        
+        # Initialize authentication service
+        logger.info("🔐 Initializing authentication service...")
+        auth_service = init_auth_service(settings.jwt_secret_key, settings.frontend_url)
+        set_auth_service(auth_service)
+        logger.info("✅ Authentication service initialized")
+        
+        # Initialize orchestrators
         orchestrator = RoofValidationOrchestrator(settings.navigator_api_key, settings.navigator_base_url)
         optimized_validator = OptimizedRoofValidator(settings.navigator_api_key, settings.navigator_base_url)
-        logger.info("Orchestrator initialized successfully with Navigator AI")
-        logger.info("Optimized validator initialized successfully with Navigator AI")
+        logger.info("✅ Orchestrator initialized successfully with Navigator AI")
+        logger.info("✅ Optimized validator initialized successfully with Navigator AI")
+        
     except Exception as e:
-        logger.error(f"Failed to initialize orchestrator: {e}")
+        logger.error(f"❌ Failed to initialize services: {e}")
         raise
 
 @app.get("/")
@@ -84,7 +107,8 @@ async def get_system_status():
 @app.post("/api/validation/validate")
 async def validate_roof_design(
     file: UploadFile = File(...),
-    validation_options: Optional[str] = None
+    validation_options: Optional[str] = None,
+    user: Dict[str, Any] = Depends(require_auth)
 ):
     """
     Complete roof design validation workflow.
@@ -135,7 +159,10 @@ async def validate_roof_design(
         raise HTTPException(status_code=500, detail=f"Validation failed: {str(e)}")
 
 @app.post("/api/validation/validate-optimized")
-async def validate_roof_design_optimized(file: UploadFile = File(...)):
+async def validate_roof_design_optimized(
+    file: UploadFile = File(...),
+    user: Dict[str, Any] = Depends(require_auth)
+):
     """
     OPTIMIZED VALIDATION - Single GPT-4o call for both analysis and validation
     
