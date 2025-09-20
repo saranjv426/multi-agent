@@ -4,16 +4,15 @@ Creates professional compliance reports from validation results
 """
 
 from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, KeepTogether
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
 from datetime import datetime
 import io
 import re
+import base64
 from typing import Dict, Any, Optional
 
 class ComplianceReportGenerator:
@@ -158,13 +157,15 @@ class ComplianceReportGenerator:
     
     def generate_report(self, 
                        validation_data: Dict[str, Any], 
-                       project_info: Optional[Dict] = None) -> bytes:
+                       project_info: Optional[Dict] = None,
+                       image_data: Optional[str] = None) -> bytes:
         """
         Generate a complete compliance report PDF
         
         Args:
             validation_data: Results from roof validation process
             project_info: Optional project metadata
+            image_data: Optional base64 encoded image data
             
         Returns:
             bytes: PDF file content
@@ -189,6 +190,10 @@ class ComplianceReportGenerator:
         # Header
         story.extend(self._build_header(project_info))
         
+        # Design section with image (if provided)
+        if image_data:
+            story.extend(self._build_design_section(image_data))
+        
         # Main content (combines all sections like UI preview)
         story.extend(self._build_executive_summary(validation_data))
         
@@ -207,6 +212,7 @@ class ComplianceReportGenerator:
     def _build_header(self, project_info: Optional[Dict] = None) -> list:
         """Build header section with table (no report ID)"""
         story = []
+        # project_info is available for future use if needed
         
         # Title
         story.append(Paragraph("ROOF DESIGN COMPLIANCE REPORT", self.styles['CustomTitle']))
@@ -237,6 +243,65 @@ class ComplianceReportGenerator:
         
         return story
     
+    def _build_design_section(self, image_data: str) -> list:
+        """Build design section with uploaded image"""
+        story = []
+        
+        # Add section header following the same pattern as other sections
+        story.append(Paragraph("1. Design", self.styles['SectionHeader']))
+        
+        try:
+            # Decode base64 image data
+            if image_data.startswith('data:image'):
+                # Remove data URL prefix if present
+                image_data = image_data.split(',')[1]
+            
+            image_bytes = base64.b64decode(image_data)
+            
+            # Create image from bytes
+            image_buffer = io.BytesIO(image_bytes)
+            img = Image(image_buffer)
+            
+            # Calculate optimal size for the image
+            # Available width: 6.5 inches (8.5" - 2" margins)
+            # We'll use 6 inches max width to leave some breathing room
+            max_width = 6.0 * inch
+            max_height = 4.5 * inch  # Reasonable max height to avoid overwhelming the page
+            
+            # Calculate scaling to fit within bounds while maintaining aspect ratio
+            img_width, img_height = img.imageWidth, img.imageHeight
+            
+            # Calculate scale factors
+            width_scale = max_width / img_width
+            height_scale = max_height / img_height
+            
+            # Use the smaller scale to ensure image fits within both width and height limits
+            scale = min(width_scale, height_scale, 1.0)  # Don't scale up, only down
+            
+            # Apply scaling
+            img.drawWidth = img_width * scale
+            img.drawHeight = img_height * scale
+            
+            # Center the image horizontally
+            img.hAlign = 'CENTER'
+            
+            # Add some spacing before the image
+            story.append(Spacer(1, 8))
+            
+            # Add the image
+            story.append(img)
+            
+            # Add spacing after the image
+            story.append(Spacer(1, 12))
+            
+        except Exception:
+            # If image processing fails, add a placeholder message
+            story.append(Spacer(1, 8))
+            story.append(Paragraph("Image could not be processed for display.", self.styles['Content']))
+            story.append(Spacer(1, 12))
+        
+        return story
+    
     def _build_executive_summary(self, validation_data: Dict[str, Any]) -> list:
         """Build executive summary section with hierarchical structure"""
         story = []
@@ -248,7 +313,7 @@ class ComplianceReportGenerator:
         lines = validation_report.split('\n')
         
         # Section counter for numbering
-        section_counter = 0
+        section_counter = 1
         
         for line in lines:
             line = line.strip()
@@ -359,19 +424,22 @@ class ComplianceReportGenerator:
                 
         return story
     
-    def _build_design_analysis(self, _: Dict[str, Any]) -> list:
+    def _build_design_analysis(self, validation_data: Dict[str, Any]) -> list:
         """Build design analysis section - this is now integrated into the main report parsing"""
         # This method is kept for compatibility but content is handled in _build_executive_summary
+        # validation_data is available for future use if needed
         return []
     
-    def _build_code_validation(self, _: Dict[str, Any]) -> list:
+    def _build_code_validation(self, validation_data: Dict[str, Any]) -> list:
         """Build code validation section - this is now integrated into the main report parsing"""
         # This method is kept for compatibility but content is handled in _build_executive_summary
+        # validation_data is available for future use if needed
         return []
     
-    def _build_recommendations(self, _: Dict[str, Any]) -> list:
+    def _build_recommendations(self, validation_data: Dict[str, Any]) -> list:
         """Build recommendations section - now integrated into main report parsing"""
         # This method is kept for compatibility but content is handled in _build_executive_summary
+        # validation_data is available for future use if needed
         return []
     
     def _build_footer(self, validation_data: Dict[str, Any]) -> list:

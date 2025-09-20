@@ -249,11 +249,27 @@ export default function UploadInterface({ onBack }: UploadInterfaceProps) {
   }
 
   const downloadReport = async () => {
-    if (validationResult) {
+    if (validationResult && uploadedFile) {
       try {
         console.log('🔄 Starting PDF download...')
         console.log('📝 Validation data:', validationResult)
+        console.log('📸 Image file:', uploadedFile.name)
         const loadingToast = toast.loading('Generating PDF report...')
+        
+        // Convert image to base64
+        const imageBase64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onload = () => resolve(reader.result as string)
+          reader.onerror = reject
+          reader.readAsDataURL(uploadedFile)
+        })
+        
+        // Prepare payload with both validation data and image
+        const payload = {
+          validation_data: validationResult,
+          image_data: imageBase64,
+          image_filename: uploadedFile.name
+        }
         
         // Call the PDF generation endpoint
         const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
@@ -263,7 +279,7 @@ export default function UploadInterface({ onBack }: UploadInterfaceProps) {
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify(validationResult)
+          body: JSON.stringify(payload)
         })
         
         console.log('📡 Response status:', response.status)
@@ -321,6 +337,8 @@ export default function UploadInterface({ onBack }: UploadInterfaceProps) {
         URL.revokeObjectURL(url)
         toast('Downloaded text report as fallback')
       }
+    } else if (validationResult && !uploadedFile) {
+      toast.error('No image file available for PDF generation')
     }
   }
 

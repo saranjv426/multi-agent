@@ -305,12 +305,14 @@ async def test_agents():
         raise HTTPException(status_code=500, detail=f"Agent test failed: {str(e)}")
 
 @app.post("/generate-pdf-report")
-async def generate_pdf_report(validation_data: Dict[str, Any]):
+async def generate_pdf_report(request_data: Dict[str, Any]):
     """
     Generate a professional PDF compliance report from validation results.
     
     Args:
-        validation_data: Complete validation results from roof analysis
+        request_data: Can be either:
+            - validation_data: Complete validation results from roof analysis (legacy)
+            - OR: {"validation_data": {...}, "image_data": "base64...", "image_filename": "..."} (new format)
         
     Returns:
         PDF file as downloadable attachment
@@ -318,8 +320,20 @@ async def generate_pdf_report(validation_data: Dict[str, Any]):
     try:
         logger.info("Generating PDF compliance report...")
         
+        # Handle both legacy and new payload formats
+        if "validation_data" in request_data and "image_data" in request_data:
+            # New format with image data
+            validation_data = request_data["validation_data"]
+            image_data = request_data.get("image_data")
+            logger.info("Using new format with image data")
+        else:
+            # Legacy format - just validation data
+            validation_data = request_data
+            image_data = None
+            logger.info("Using legacy format without image data")
+        
         # Generate PDF bytes
-        pdf_bytes = pdf_generator.generate_report(validation_data)
+        pdf_bytes = pdf_generator.generate_report(validation_data, image_data=image_data)
         
         # Create filename with timestamp
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
