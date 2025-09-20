@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
+import { toast } from 'react-hot-toast'
 import { 
   ShieldCheckIcon, 
   DocumentCheckIcon, 
@@ -40,6 +41,19 @@ export default function HomePage() {
 
   useEffect(() => {
     setMounted(true)
+  }, [])
+
+  // Listen for authentication expiration events
+  useEffect(() => {
+    const handleAuthExpired = () => {
+      toast.error('Your session has expired. Please log in again.')
+    }
+
+    window.addEventListener('auth-expired', handleAuthExpired)
+    
+    return () => {
+      window.removeEventListener('auth-expired', handleAuthExpired)
+    }
   }, [])
 
   // Redirect to landing page when user logs out while on dashboard

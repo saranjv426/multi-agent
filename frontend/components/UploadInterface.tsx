@@ -18,6 +18,7 @@ import {
   ShieldCheckIcon
 } from '@heroicons/react/24/outline'
 import axios from 'axios'
+import { api } from '../lib/api'
 
 interface UploadInterfaceProps {
   onBack: () => void
@@ -166,14 +167,25 @@ export default function UploadInterface({ onBack }: UploadInterfaceProps) {
         headers.Authorization = `Bearer ${token}`
       }
 
-      const response = await axios.post(
-        `${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'}/api/validation/validate-optimized`,
-        formData,
-        {
-          headers,
-          timeout: 60000, // 60 second timeout
+      // Use the new API utility for better error handling
+      const response = await api.post('/api/validation/validate-optimized', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      })
+      
+      // Handle API errors
+      if (response.error) {
+        if (response.status === 401) {
+          toast.error('Your session has expired. Please log in again.')
+          return
         }
-      )
+        throw new Error(response.error)
+      }
+      
+      if (!response.data) {
+        throw new Error('No data received from server')
+      }
       
       updateStepStatus(1, 'completed')
       setCurrentStep(2)
@@ -197,9 +209,7 @@ export default function UploadInterface({ onBack }: UploadInterfaceProps) {
       console.error('Validation error:', error)
       updateStepStatus(currentStep, 'error')
       
-      const errorMessage = error.response?.data?.detail || 
-                          error.message || 
-                          'An error occurred during validation'
+      const errorMessage = error.message || 'An error occurred during validation'
       toast.error(errorMessage)
     } finally {
       setIsProcessing(false)
@@ -271,31 +281,32 @@ export default function UploadInterface({ onBack }: UploadInterfaceProps) {
           image_filename: uploadedFile.name
         }
         
-        // Call the PDF generation endpoint
-        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
-        console.log('🌐 Calling endpoint:', `${backendUrl}/generate-pdf-report`)
-        const response = await fetch(`${backendUrl}/generate-pdf-report`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(payload)
-        })
+        // Call the PDF generation endpoint using the new API utility
+        console.log('🌐 Calling PDF generation endpoint...')
+        const response = await api.post('/generate-pdf-report', payload)
         
         console.log('📡 Response status:', response.status)
-        console.log('📋 Response headers:', Object.fromEntries(response.headers.entries()))
         
-        if (!response.ok) {
-          const errorText = await response.text()
-          console.error('❌ HTTP error response:', errorText)
+        // Handle API errors
+        if (response.error) {
+          if (response.status === 401) {
+            toast.dismiss(loadingToast)
+            toast.error('Your session has expired. Please log in again.')
+            return
+          }
           toast.dismiss(loadingToast)
-          throw new Error(`HTTP error! status: ${response.status}, response: ${errorText}`)
+          throw new Error(response.error)
         }
         
-        // Get the PDF blob
-        console.log('📄 Getting PDF blob...')
-        const blob = await response.blob()
-        console.log('✅ Blob received:', blob.size, 'bytes, type:', blob.type)
+        if (!response.data) {
+          toast.dismiss(loadingToast)
+          throw new Error('No PDF data received from server')
+        }
+        
+        // Convert response data to blob
+        console.log('📄 Converting response to blob...')
+        const blob = new Blob([response.data], { type: 'application/pdf' })
+        console.log('✅ Blob created:', blob.size, 'bytes, type:', blob.type)
         
         // Create and download PDF
         const url = URL.createObjectURL(blob)

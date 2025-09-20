@@ -26,32 +26,77 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  // Check if user is already logged in on app start
-  useEffect(() => {
-    const token = localStorage.getItem('access_token')
-    if (token) {
-      // Verify token with backend
-      fetch(`${API_BASE_URL}/api/auth/me`, {
+  // Helper function to handle token validation
+  const validateToken = async (token: string): Promise<boolean> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       })
-      .then(res => res.json())
-      .then(data => {
-        if (data.user) {
-          setUser(data.user)
-        } else {
-          localStorage.removeItem('access_token')
+      
+      if (response.status === 401) {
+        // Token is invalid or expired
+        return false
+      }
+      
+      if (!response.ok) {
+        return false
+      }
+      
+      const data = await response.json()
+      if (data.user) {
+        setUser(data.user)
+        return true
+      }
+      
+      return false
+    } catch (error) {
+      console.error('Token validation failed:', error)
+      return false
+    }
+  }
+
+  // Helper function to clear auth state
+  const clearAuthState = () => {
+    localStorage.removeItem('access_token')
+    setUser(null)
+  }
+
+  // Check if user is already logged in on app start
+  useEffect(() => {
+    const token = localStorage.getItem('access_token')
+    if (token) {
+      validateToken(token).then(isValid => {
+        if (!isValid) {
+          clearAuthState()
         }
-      })
-      .catch(() => {
-        localStorage.removeItem('access_token')
-      })
-      .finally(() => {
         setIsLoading(false)
       })
     } else {
       setIsLoading(false)
+    }
+  }, [])
+
+  // Add global error handler for 401 responses
+  useEffect(() => {
+    const handleApiError = (event: Event) => {
+      const customEvent = event as CustomEvent
+      if (customEvent.detail?.status === 401) {
+        console.log('🔄 401 error detected, logging out user')
+        clearAuthState()
+        // Optionally show a toast notification
+        if (typeof window !== 'undefined' && window.dispatchEvent) {
+          window.dispatchEvent(new CustomEvent('auth-expired'))
+        }
+      }
+    }
+
+    // Listen for API errors
+    window.addEventListener('api-error', handleApiError)
+    
+    return () => {
+      window.removeEventListener('api-error', handleApiError)
     }
   }, [])
 
@@ -104,8 +149,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const logout = () => {
-    localStorage.removeItem('access_token')
-    setUser(null)
+    clearAuthState()
   }
 
   const resetPassword = async (email: string, newPassword: string, confirmPassword: string): Promise<{ success: boolean; error?: string }> => {
