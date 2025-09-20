@@ -3,7 +3,7 @@ Cloud-optimized FastAPI Backend for Roof Design Validation System
 Optimized for Railway/Render deployment
 """
 
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi import FastAPI, File, UploadFile, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 from typing import Optional, Dict, Any
@@ -15,6 +15,9 @@ from agents.orchestrator import RoofValidationOrchestrator
 from agents.optimized_orchestrator import OptimizedRoofValidator
 from config import settings
 from utils.pdf_generator import ComplianceReportGenerator
+from auth.routes import router as auth_router, init_auth_service
+from auth.middleware import require_auth, set_auth_service
+from database.connection import init_database
 
 # Configure logging for cloud
 logging.basicConfig(
@@ -35,11 +38,14 @@ app = FastAPI(
 # Configure CORS for cloud deployment
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Permissive for demo - restrict in production
+    allow_origins=settings.allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include authentication routes
+app.include_router(auth_router)
 
 # Global instances
 orchestrator = None
@@ -48,16 +54,33 @@ pdf_generator = ComplianceReportGenerator()
 
 @app.on_event("startup")
 async def startup_event():
-    """Initialize the system with Navigator AI API key."""
+    """Initialize the orchestrator and authentication system."""
     global orchestrator, optimized_validator
     
     logger.info("🚀 Starting Roof Design Validation API...")
     logger.info(f"Environment: {settings.environment}")
     
     try:
+        # Initialize database
+        logger.info("🗄️ Initializing database...")
+        db_connected = init_database()
+        if db_connected:
+            logger.info("✅ Database initialized successfully")
+        else:
+            logger.error("❌ Database connection failed")
+            raise Exception("Database initialization failed")
+        
+        # Initialize authentication service
+        logger.info("🔐 Initializing authentication service...")
+        auth_service = init_auth_service(settings.jwt_secret_key, settings.frontend_url)
+        set_auth_service(auth_service)
+        logger.info("✅ Authentication service initialized")
+        
+        # Initialize orchestrators
         orchestrator = RoofValidationOrchestrator(settings.navigator_api_key, settings.navigator_base_url)
         optimized_validator = OptimizedRoofValidator(settings.navigator_api_key, settings.navigator_base_url)
         logger.info("✅ System initialized successfully with Navigator AI")
+        
     except Exception as e:
         logger.error(f"❌ Failed to initialize system: {e}")
         raise
@@ -80,7 +103,10 @@ async def health_check():
     return {"status": "healthy", "timestamp": datetime.now().isoformat()}
 
 @app.post("/api/validation/validate-optimized")
-async def validate_roof_design_optimized(file: UploadFile = File(...)):
+async def validate_roof_design_optimized(
+    file: UploadFile = File(...),
+    user: Dict[str, Any] = Depends(require_auth)
+):
     """
     OPTIMIZED VALIDATION - Single AI call for analysis and validation
     Perfect for cloud deployment with faster processing
@@ -122,7 +148,8 @@ async def validate_roof_design_optimized(file: UploadFile = File(...)):
 @app.post("/api/validation/validate")
 async def validate_roof_design_detailed(
     file: UploadFile = File(...),
-    validation_options: Optional[str] = None
+    validation_options: Optional[str] = None,
+    user: Dict[str, Any] = Depends(require_auth)
 ):
     """Complete detailed validation workflow (2-agent process)."""
     if not orchestrator:
