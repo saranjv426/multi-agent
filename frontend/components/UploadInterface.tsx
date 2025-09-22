@@ -156,23 +156,10 @@ export default function UploadInterface({ onBack }: UploadInterfaceProps) {
       updateStepStatus(1, 'processing')
       const formData = new FormData()
       formData.append('file', uploadedFile)
-      
-      // Get auth token
-      const token = localStorage.getItem('access_token')
-      const headers: Record<string, string> = {
-        'Content-Type': 'multipart/form-data',
-      }
-      
-      if (token) {
-        headers.Authorization = `Bearer ${token}`
-      }
 
       // Use the new API utility for better error handling
-      const response = await api.post('/api/validation/validate-optimized', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      })
+      // Important: do NOT set Content-Type for FormData; browser will set correct boundary
+      const response = await api.post('/api/validation/validate-optimized', formData)
       
       // Handle API errors
       if (response.error) {
@@ -283,7 +270,7 @@ export default function UploadInterface({ onBack }: UploadInterfaceProps) {
         
         // Call the PDF generation endpoint using the new API utility
         console.log('🌐 Calling PDF generation endpoint...')
-        const response = await api.post('/generate-pdf-report', payload)
+        const response = await api.post('/generate-pdf-report', payload, { responseType: 'blob' } as any)
         
         console.log('📡 Response status:', response.status)
         
@@ -304,8 +291,7 @@ export default function UploadInterface({ onBack }: UploadInterfaceProps) {
         }
         
         // Convert response data to blob
-        console.log('📄 Converting response to blob...')
-        const blob = new Blob([response.data], { type: 'application/pdf' })
+        const blob = response.data as Blob
         console.log('✅ Blob created:', blob.size, 'bytes, type:', blob.type)
         
         // Create and download PDF

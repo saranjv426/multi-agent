@@ -15,23 +15,27 @@ interface ApiResponse<T = any> {
  */
 export async function apiRequest<T = any>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit & { responseType?: 'json' | 'text' | 'blob' } = {}
 ): Promise<ApiResponse<T>> {
-  const token = localStorage.getItem('access_token')
-  
-  const defaultHeaders: HeadersInit = {
-    'Content-Type': 'application/json',
+  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
+
+  const bodyIsFormData = typeof FormData !== 'undefined' && options.body instanceof FormData
+
+  const defaultHeaders: HeadersInit = {}
+  // Only set JSON Content-Type if we're not sending FormData and caller didn't set it
+  if (!bodyIsFormData) {
+    (defaultHeaders as any)['Content-Type'] = (options.headers as any)?.['Content-Type'] ?? 'application/json'
   }
-  
+
   if (token) {
-    defaultHeaders['Authorization'] = `Bearer ${token}`
+    (defaultHeaders as any)['Authorization'] = `Bearer ${token}`
   }
-  
+
   const config: RequestInit = {
     ...options,
     headers: {
       ...defaultHeaders,
-      ...options.headers,
+      ...(options.headers || {}),
     },
   }
   
@@ -52,12 +56,18 @@ export async function apiRequest<T = any>(
     }
     
     let data: T | undefined
-    const contentType = response.headers.get('content-type')
-    
-    if (contentType && contentType.includes('application/json')) {
+    const { responseType } = options as any
+    const contentType = response.headers.get('content-type') || ''
+
+    if (responseType === 'blob') {
+      data = (await response.blob()) as unknown as T
+    } else if (responseType === 'text') {
+      data = (await response.text()) as unknown as T
+    } else if (contentType.includes('application/json')) {
       data = await response.json()
     } else {
-      data = await response.text() as unknown as T
+      // Default to text when content type is unknown
+      data = (await response.text()) as unknown as T
     }
     
     if (!response.ok) {
@@ -85,23 +95,24 @@ export async function apiRequest<T = any>(
  * Convenience methods for common HTTP methods
  */
 export const api = {
-  get: <T = any>(endpoint: string, options?: RequestInit) =>
-    apiRequest<T>(endpoint, { ...options, method: 'GET' }),
+  get: <T = any>(endpoint: string, options?: RequestInit & { responseType?: 'json' | 'text' | 'blob' }) =>
+    apiRequest<T>(endpoint, { ...(options || {}), method: 'GET' }),
     
-  post: <T = any>(endpoint: string, body?: any, options?: RequestInit) =>
+  post: <T = any>(endpoint: string, body?: any, options?: RequestInit & { responseType?: 'json' | 'text' | 'blob' }) =>
     apiRequest<T>(endpoint, {
-      ...options,
+      ...(options || {}),
       method: 'POST',
-      body: body ? JSON.stringify(body) : undefined,
+      // If body is FormData, pass as-is; otherwise JSON.stringify
+      body: body instanceof FormData ? body : (body !== undefined ? JSON.stringify(body) : undefined),
     }),
     
-  put: <T = any>(endpoint: string, body?: any, options?: RequestInit) =>
+  put: <T = any>(endpoint: string, body?: any, options?: RequestInit & { responseType?: 'json' | 'text' | 'blob' }) =>
     apiRequest<T>(endpoint, {
-      ...options,
+      ...(options || {}),
       method: 'PUT',
-      body: body ? JSON.stringify(body) : undefined,
+      body: body instanceof FormData ? body : (body !== undefined ? JSON.stringify(body) : undefined),
     }),
     
-  delete: <T = any>(endpoint: string, options?: RequestInit) =>
-    apiRequest<T>(endpoint, { ...options, method: 'DELETE' }),
+  delete: <T = any>(endpoint: string, options?: RequestInit & { responseType?: 'json' | 'text' | 'blob' }) =>
+    apiRequest<T>(endpoint, { ...(options || {}), method: 'DELETE' }),
 }
