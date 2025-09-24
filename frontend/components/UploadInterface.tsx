@@ -393,7 +393,7 @@ export default function UploadInterface({ onBack }: UploadInterfaceProps) {
                   )}
                   
                   <div className="mt-4 text-xs text-gray-500">
-                    Supports: PNG, JPG, GIF, PDF (Max 10MB)
+                    Supports: PNG, JPG, JPEG, CAD (Max 10MB)
                   </div>
                 </div>
               ) : (
