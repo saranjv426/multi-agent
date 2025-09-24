@@ -98,7 +98,7 @@ export default function UploadInterface({ onBack }: UploadInterfaceProps) {
       // Validate file type
       const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf']
       if (!allowedTypes.includes(file.type)) {
-        toast.error('Please upload an image (PNG, JPG, GIF) or PDF file')
+        toast.error('Please upload an image (PNG, JPG, JPEG) or CAD file')
         return
       }
       

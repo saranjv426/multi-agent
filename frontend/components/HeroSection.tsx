@@ -146,7 +146,7 @@ export default function HeroSection({ onStartValidation }: HeroSectionProps) {
                       </svg>
                     </div>
                     <p className="text-primary-700 font-medium">Drop your roof design here</p>
-                    <p className="text-sm text-primary-600 mt-1">PNG, JPG, PDF, CAD files</p>
+                    <p className="text-sm text-primary-600 mt-1">PNG, JPG, JPEG, CAD files</p>
                   </div>
                   
                   {/* Results Preview */}

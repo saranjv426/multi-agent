@@ -73,7 +73,7 @@ The Roof Design Validation System provides:
 ### **1. Smart File Upload**
 
 **Drag & Drop Interface**
-- Supports multiple file formats: PNG, JPG, GIF, PDF
+- Supports multiple file formats: PNG, JPG, JPEG, CAD
 - Real-time file validation and preview
 - Maximum file size: 10MB
 - Instant visual feedback
