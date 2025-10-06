@@ -31,7 +31,7 @@ class AuthenticationService:
             
             # Validate email format
             try:
-                valid_email = validate_email(email)
+                valid_email = validate_email(email, check_deliverability=False)
                 email = valid_email.email.lower()
             except EmailNotValidError as e:
                 logger.warning(f"Invalid email format: {email}")
