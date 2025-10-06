@@ -96,9 +96,13 @@ class AuthenticationService:
         except Exception as e:
             db.rollback()
             logger.error(f"❌ Unexpected error during signup: {e}")
+            logger.error(f"❌ Error type: {type(e).__name__}")
+            logger.error(f"❌ Error details: {str(e)}")
+            import traceback
+            logger.error(f"❌ Traceback: {traceback.format_exc()}")
             return {
                 "success": False,
-                "error": "Registration failed. Please try again."
+                "error": f"Registration failed: {str(e)}"
             }
     
     async def login(self, db: Session, email: str, password: str) -> Dict[str, Any]:
@@ -153,9 +157,12 @@ class AuthenticationService:
             
         except Exception as e:
             logger.error(f"❌ Error during login: {e}")
+            logger.error(f"❌ Error type: {type(e).__name__}")
+            import traceback
+            logger.error(f"❌ Traceback: {traceback.format_exc()}")
             return {
                 "success": False,
-                "error": "Login failed. Please try again."
+                "error": f"Login failed: {str(e)}"
             }
     
     async def forgot_password(self, db: Session, email: str, frontend_url: str) -> Dict[str, Any]:
