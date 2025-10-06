@@ -87,8 +87,8 @@ export default function StatsSection() {
             Trusted by Professionals
           </h2>
           <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            Our AI-powered validation system has processed thousands of roof designs, 
-            helping architects and engineers ensure code compliance.
+            Our validation system has processed thousands of roof designs, 
+            making it easier toensure code compliance.
           </p>
         </motion.div>
         
