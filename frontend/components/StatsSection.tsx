@@ -13,7 +13,7 @@ interface Stat {
 const stats: Stat[] = [
   {
     label: "Accuracy Rate",
-    value: "> 95",
+    value: "> 90",
     suffix: "%",
     description: "Building code compliance detection accuracy"
   },

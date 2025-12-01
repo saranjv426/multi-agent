@@ -98,7 +98,7 @@ export default function HomePage() {
     {
       icon: CloudArrowUpIcon,
       title: "Smart Image Analysis",
-      description: "Upload any roof design image, CAD file, or technical drawing. Using machine learning models, we extract every structural detail with precision.",
+      description: "Upload any roof design image, or technical drawing. Using machine learning models, we extract every structural detail with precision.",
       color: "blue"
     },
     {
