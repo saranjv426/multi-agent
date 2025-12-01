@@ -135,7 +135,7 @@ export default function HomePage() {
     {
       step: "03",
       title: "Code Validation", 
-      description: "we validate the extracted data against Florida Building Code requirements"
+      description: "we validate the extracted data against Florida Residential Building Code requirements"
     },
     {
       step: "04",
@@ -332,7 +332,7 @@ export default function HomePage() {
                 </li>
                 <li className="flex items-center space-x-2">
                   <CheckCircleIcon className="h-4 w-4 text-green-400" />
-                  <span>Florida Building Code Validation</span>
+                  <span>Florida Residential Building Code Validation</span>
                 </li>
                 <li className="flex items-center space-x-2">
                   <CheckCircleIcon className="h-4 w-4 text-green-400" />
@@ -351,7 +351,7 @@ export default function HomePage() {
                 Get help with your roof design validation process.
               </p>
               <div className="space-y-2 text-gray-400">
-                <p>Email: durgamaheshboppani@gmail.com</p>
+                <p>Email: nnawari@ufl.edu</p>
                 <p>Documentation available</p>
               </div>
             </div>
