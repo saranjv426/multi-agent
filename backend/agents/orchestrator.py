@@ -16,20 +16,39 @@ class RoofValidationOrchestrator:
     Image Input → Agent1 Analysis → Agent2 Validation → Compliance Report
     """
     
-    def __init__(self, navigator_api_key: str, base_url: str = "https://api.ai.it.ufl.edu"):
+    def __init__(
+        self,
+        openai_api_key: str,
+        api_base: str = "https://api.openai.com/v1",
+        main_model: str = "gpt-5",
+        summary_model: str = "gpt-5-mini"
+    ):
         """
-        Initialize the orchestrator with Navigator AI API key.
+        Initialize the orchestrator with OpenAI models.
         
         Args:
-            navigator_api_key: Navigator AI API key for both agents
-            base_url: Navigator AI base URL
+            openai_api_key: API key for OpenAI access
+            api_base: Optional API base URL (for Azure/OpenAI routing)
+            main_model: Vision-capable model for extraction/validation
+            summary_model: Lightweight model for follow-up summarization
         """
-        self.navigator_api_key = navigator_api_key
-        self.base_url = base_url
+        self.openai_api_key = openai_api_key
+        self.api_base = api_base
+        self.main_model = main_model
+        self.summary_model = summary_model
         
         # Initialize agents
-        self.agent1 = RoofDesignAnalyzer(navigator_api_key, base_url)
-        self.agent2 = BuildingCodeValidator(navigator_api_key, base_url)
+        self.agent1 = RoofDesignAnalyzer(
+            openai_api_key,
+            api_base,
+            vision_model=main_model
+        )
+        self.agent2 = BuildingCodeValidator(
+            openai_api_key,
+            api_base,
+            validation_model=main_model,
+            summary_model=summary_model
+        )
         self.design_parser = DesignParser()
         
         # System status
@@ -50,12 +69,12 @@ class RoofValidationOrchestrator:
             "agents": {
                 "agent1": {
                     "name": "Roof Design Analyzer",
-                    "technology": "Navigator AI GPT-4o Vision API",
+                    "technology": f"OpenAI {self.main_model} Vision API",
                     "status": "ready" if self.system_status["agent1_ready"] else "not ready"
                 },
                 "agent2": {
                     "name": "Building Code Validator", 
-                    "technology": "Navigator AI GPT-4o Text API",
+                    "technology": f"OpenAI {self.main_model}",
                     "status": "ready" if self.system_status["agent2_ready"] else "not ready"
                 }
             }

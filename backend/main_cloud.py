@@ -77,9 +77,19 @@ async def startup_event():
         logger.info("✅ Authentication service initialized")
         
         # Initialize orchestrators
-        orchestrator = RoofValidationOrchestrator(settings.navigator_api_key, settings.navigator_base_url)
-        optimized_validator = OptimizedRoofValidator(settings.navigator_api_key, settings.navigator_base_url)
-        logger.info("✅ System initialized successfully with Navigator AI")
+        orchestrator = RoofValidationOrchestrator(
+            settings.openai_api_key,
+            settings.openai_api_base,
+            settings.openai_main_model,
+            settings.openai_summary_model
+        )
+        optimized_validator = OptimizedRoofValidator(
+            settings.openai_api_key,
+            settings.openai_api_base,
+            settings.openai_main_model,
+            settings.openai_summary_model
+        )
+        logger.info("✅ System initialized successfully with OpenAI GPT-5")
         
     except Exception as e:
         logger.error(f"❌ Failed to initialize system: {e}")

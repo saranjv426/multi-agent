@@ -13,21 +13,28 @@ import time
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 class BuildingCodeValidator:
     """
     Agent 2: Building Code Validator
-    Uses Mistral Small 3.1 to validate design specifications against Florida Building Code
-    Enhanced with comprehensive prompts for thorough compliance checking
+    Uses OpenAI GPT-5 for compliance analysis and GPT-5-mini for narrative summarization.
     """
     
-    def __init__(self, api_key: str, base_url: str = "https://api.ai.it.ufl.edu"):
-        """Initialize the building code validator with Navigator AI API key."""
-        self.client = OpenAI(api_key=api_key, base_url=base_url)
+    def __init__(
+        self,
+        api_key: str,
+        api_base: str = "https://api.openai.com/v1",
+        validation_model: str = "gpt-5.1",
+        summary_model: str = "gpt-5-mini"
+    ):
+        """Initialize the building code validator with OpenAI credentials."""
+        self.client = OpenAI(api_key=api_key, base_url=api_base)
         self.validation_cache = {}
         
         # Configuration
-        self.text_model = "mistral-small-3.1"
-        self.max_tokens = 6000  # Increased for comprehensive compliance analysis
+        self.validation_model = validation_model
+        self.summary_model = summary_model
+        self.max_completion_tokens = 4000
         self.temperature = 0.1  # Low temperature for consistent code validation
         
     def validate_roof_design(self, agent1_output: str, options: Optional[Dict] = None) -> Dict[str, Any]:
@@ -47,108 +54,171 @@ class BuildingCodeValidator:
             logger.info("Starting building code validation with Mistral Small 3.1...")
             
             validation_prompt = f"""
-ROLE:
-You are a certified building code compliance expert for Florida Building Code - Residential (FBC-R) 2023, focused on Chapter 8 (Roof-Ceiling Construction) and Chapter 9 (Roof Assemblies/Wind). Task: validate the roof design below for code compliance.
+You are a Florida Building Code expert specializing in residential roof construction compliance (FBC-R 2023).
 
-INPUT (design to validate):
+TASK: Validate the roof design specifications below against Florida Residential Building Code 2023.
+
+FOCUS: Primarily ROOF elements - sheathing, framing, connections, covering, wind resistance.
+
+INPUT DATA (from structural analysis):
 {agent1_output}
 
-STRICT BEHAVIOR:
-- Work only from the provided specs; do not assume typical values.
-- STATUS rules per element:
-  COMPLIANT = meets cited FBC-R requirement(s).
-  NON-COMPLIANT = violates cited requirement(s).
-  REQUIRES FURTHER REVIEW = element present but info is insufficient/ambiguous/contradictory OR exact code/table cannot be confirmed.
-  MISSING = element not mentioned at all.
-  N/A = not applicable per FBC-R (must cite why).
-- Always cite precise FBC-R section/table (e.g., “FBC-R 2023 R803.2.1; Table R802.4.1(1)”). Do not fabricate citations.
-- Brief analysis must quote key values from the input (e.g., “7/16 in OSB @ 24 in o.c., nails 8d @ 6/12 in.”) before judging status.
+VALIDATION APPROACH:
+For EACH SECTION extracted above, perform compliance checks on ALL roof elements.
 
-CRITICALITY MAP (governs OVERALL STATUS):
-CRITICAL: Wind Resistance; Sheathing; Rafter Spacing/Spans; Fastening/Connections.
-SIGNIFICANT: Underlayment (PROMOTE to CRITICAL if HVHZ or product approval/listing requires specific underlayment).
-MINOR: Insulation (PROMOTE to SIGNIFICANT if condensation/ventilation control affects compliance).
+OUTPUT STRUCTURE (use exactly this format):
 
-OVERALL STATUS ALGORITHM (apply in order):
-1) If any CRITICAL is NON-COMPLIANT → OVERALL = NON-COMPLIANT.
-2) Else if any CRITICAL is MISSING → OVERALL = MISSING.
-3) Else if any CRITICAL is REQUIRES FURTHER REVIEW → OVERALL = REQUIRES FURTHER REVIEW.
-4) Else if any SIGNIFICANT is NON-COMPLIANT:
-     - If ≥2 SIGNIFICANT non-compliances → OVERALL = NON-COMPLIANT
-     - Else → OVERALL = REQUIRES FURTHER REVIEW
-5) Else if any SIGNIFICANT is MISSING → OVERALL = MISSING.
-6) Else if any SIGNIFICANT is REQUIRES FURTHER REVIEW → OVERALL = REQUIRES FURTHER REVIEW.
-7) Else if any MINOR is NON-COMPLIANT → OVERALL = REQUIRES FURTHER REVIEW.
-8) Else if only MINOR are MISSING/REQUIRES FURTHER REVIEW and all others are COMPLIANT/N/A → OVERALL = COMPLIANT.
+================================================================================
+OVERALL_COMPLIANCE_STATUS: [COMPLIANT / NON-COMPLIANT / REQUIRES FURTHER REVIEW / INSUFFICIENT DATA]
+================================================================================
 
-MISSING vs REQUIRES FURTHER REVIEW DECISION:
-- If an element is not mentioned at all → MISSING.
-- If mentioned but key data is absent/unclear/contradictory (e.g., species/grade not given for span check; wind speed not stated; citation uncertain) → REQUIRES FURTHER REVIEW with reason (“missing rafter grade”, “wind parameters not provided”, “exact table confirmation needed”).
-- If wind parameters/site (Vult, exposure, HVHZ) are not present, mark Wind Resistance as MISSING.
+SECTION_BY_SECTION_VALIDATION:
 
-VALIDATION CHECKLIST (cite exact sections/tables):
-- Sheathing (R803.*; Tables R803.* / fastening tables)
-- Rafter Spacing/Spans (R802.* span tables)
-- Fastening/Connections (R8xx tables/sections referenced by sheathing/rafters/connectors)
-- Underlayment (R905.x and related; HVHZ where applicable)
-- Insulation (applicable roof/ceiling provisions; cite section used)
-- Wind Resistance (R301.2.1 and applicable uplift/roof covering sections incl. R905.x, connectors/load path as applicable)
+---
+SECTION: [section identifier from input]
 
-OUTPUT FORMAT (plain text only; exact structure):
-OVERALL STATUS: [COMPLIANT/NON-COMPLIANT/REQUIRES FURTHER REVIEW/MISSING]
+ROOF_FRAMING_COMPLIANCE:
+  Status: [COMPLIANT / NON-COMPLIANT / REQUIRES REVIEW / NOT APPLICABLE]
+  Code_Reference: [specific FBC-R section, e.g., "FBC-R 2023 §R802.4, Table R802.4(1)"]
+  Analysis: |
+    [Detailed analysis of compliance]
+    - Design specifies: [quote exact spec]
+    - Code requires: [state requirement]
+    - Determination: [explain why compliant/non-compliant]
+  Required_Corrections: [specific fixes needed, or "None"]
 
-ELEMENT ANALYSIS:
-Sheathing: [STATUS] - [FBC Reference] - [Brief analysis]
-Rafter Spacing/Spans: [STATUS] - [FBC Reference] - [Brief analysis]
-Fastening: [STATUS] - [FBC Reference] - [Brief analysis]
-Underlayment: [STATUS] - [FBC Reference] - [Brief analysis]
-Insulation: [STATUS] - [FBC Reference] - [Brief analysis]
-Wind Resistance: [STATUS] - [FBC Reference] - [Brief analysis]
+ROOF_SHEATHING_COMPLIANCE:
+  Status: [COMPLIANT / NON-COMPLIANT / REQUIRES REVIEW / NOT APPLICABLE]
+  Code_Reference: [e.g., "FBC-R 2023 §R803.2.1, Table R803.2.1.1(1)"]
+  Analysis: |
+    - Sheathing specified: [quote spec]
+    - Fastening specified: [quote pattern]
+    - Code requirement: [state requirement]
+    - Span rating: [if applicable]
+    - Determination: [reasoning]
+  Required_Corrections: [specific fixes, or "None"]
 
-CRITICAL FINDINGS:
-Major Issues:
-- [List issues with exact citations]
+ROOF_TO_WALL_CONNECTION_COMPLIANCE:
+  Status: [COMPLIANT / NON-COMPLIANT / REQUIRES REVIEW / NOT APPLICABLE]
+  Code_Reference: [e.g., "FBC-R 2023 §R802.11, Table R802.11"]
+  Analysis: |
+    - Connection hardware: [quote spec]
+    - Code requirement: [based on design wind speed, exposure]
+    - Load path: [evaluation]
+    - Determination: [reasoning]
+  Required_Corrections: [specific fixes, or "None"]
 
-Required Corrections:
-- [Precise fixes with table/section references]
+ROOF_COVERING_COMPLIANCE:
+  Status: [COMPLIANT / NON-COMPLIANT / REQUIRES REVIEW / NOT APPLICABLE]
+  Code_Reference: [e.g., "FBC-R 2023 §R905.x (based on material type)"]
+  Analysis: |
+    - Roof covering: [quote spec]
+    - Underlayment: [quote spec]
+    - Installation requirements: [manufacturer, FBC notes]
+    - Code requirement: [for this roof type and slope]
+    - Wind resistance: [if HVHZ applicable]
+    - Determination: [reasoning]
+  Required_Corrections: [specific fixes, or "None"]
 
-Professional Recommendations:
-- [Targeted engineering recs; e.g., connector upgrades, alternate fastening schedule, rafter size/species change, HVHZ-compliant underlayment]
+WIND_RESISTANCE_COMPLIANCE:
+  Status: [COMPLIANT / NON-COMPLIANT / REQUIRES REVIEW / NOT APPLICABLE]
+  Code_Reference: [e.g., "FBC-R 2023 §R301.2.1, ASCE 7"]
+  Analysis: |
+    - Design wind speed: [if noted, or "not specified"]
+    - Exposure category: [if noted, or "not specified"]
+    - Hurricane ties/straps: [quote spec]
+    - Sheathing attachment: [evaluation for uplift]
+    - Roof covering attachment: [wind rating if applicable]
+    - Determination: [reasoning]
+  Required_Corrections: [specific fixes, or "None"]
 
-SUMMARY:
-[Overall assessment; list items marked MISSING; list reasons for any REQUIRES FURTHER REVIEW; state if HVHZ/product-approval dependency elevated underlayment.]
+INSULATION_AND_VENTILATION:
+  Status: [COMPLIANT / NON-COMPLIANT / REQUIRES REVIEW / NOT APPLICABLE]
+  Code_Reference: [e.g., "FBC-R 2023 §R806.5, §N1102"]
+  Analysis: |
+    - Insulation: [quote R-value and type]
+    - Ventilation: [vented/non-vented attic]
+    - Code requirement: [for climate zone]
+    - Condensation control: [if applicable]
+    - Determination: [reasoning]
+  Required_Corrections: [specific fixes, or "None"]
 
-            """
+SECTION_SUMMARY:
+  Overall_Status: [COMPLIANT / NON-COMPLIANT / REQUIRES REVIEW]
+  Critical_Issues: [list major violations, or "None"]
+  Minor_Issues: [list items needing clarification, or "None"]
+
+---
+[Repeat for each section]
+
+================================================================================
+CRITICAL_FINDINGS_SUMMARY:
+  Major_Violations: 
+    - [list all NON-COMPLIANT items across all sections]
+    - [if none: "No major code violations identified"]
+  
+  Items_Requiring_Review:
+    - [list all REQUIRES REVIEW items]
+    - [if none: "No items requiring further review"]
+  
+  Missing_Information:
+    - [list critical specs not shown in drawings]
+    - [if none: "All critical information provided"]
+
+REQUIRED_CORRECTIONS:
+  High_Priority:
+    - [corrections needed for NON-COMPLIANT items]
+    - [if none: "None required"]
+  
+  Recommended:
+    - [suggested improvements for REQUIRES REVIEW items]
+    - [best practices]
+    - [if none: "None"]
+
+PROFESSIONAL_RECOMMENDATION:
+  [1-2 paragraph summary of overall compliance status, key issues, and recommended next steps for permit submission]
+
+VALIDATION_METADATA:
+  Code_Edition: Florida Building Code - Residential 2023
+  Primary_Chapters: Chapter 8 (Roof-Ceiling Construction), Chapter 9 (Roof Assemblies)
+  Sections_Analyzed: [count]
+  Confidence_Level: [HIGH / MEDIUM / LOW - based on completeness of input data]
+
+STRICT VALIDATION RULES:
+1. Only validate what is explicitly shown - never assume missing details
+2. Quote exact specifications from the input when analyzing
+3. Cite specific FBC-R section numbers (not generic references)
+4. Mark "REQUIRES REVIEW" when information is partial/ambiguous
+5. Mark "NOT APPLICABLE" when a code section doesn't apply to this design
+6. For wind resistance, note if design wind speed is not specified
+7. Consider Florida's specific requirements (HVHZ zones, high wind, etc.)
+8. Prioritize life safety issues (connections, uplift, structural adequacy)
+"""
             
-            # Call Navigator AI API
-            response = self.client.chat.completions.create(
-                model=self.text_model,
-                messages=[
+            response = self.client.responses.create(
+                model=self.validation_model,
+                max_completion_tokens=self.max_output_tokens,
+                input=[
                     {
                         "role": "user",
-                        "content": validation_prompt
+                        "content": [
+                            {"type": "input_text", "text": validation_prompt}
+                        ]
                     }
-                ],
-                max_tokens=self.max_tokens,
-                temperature=self.temperature
+                ]
             )
             
+            # Extract response content directly
             validation_result = response.choices[0].message.content
+            if not validation_result or not validation_result.strip():
+                raise RuntimeError(f"Validation model returned empty output")
             
-            # Calculate processing time and cost
             processing_time = time.time() - start_time
-            total_tokens = response.usage.total_tokens
-            prompt_tokens = response.usage.prompt_tokens
-            completion_tokens = response.usage.completion_tokens
+            total_tokens = response.usage.total_tokens if response.usage else 0
             
-            # Navigator AI Mistral Small 3.1 - Free through university credit
-            # Estimated equivalent value for tracking purposes
-            estimated_cost = 0.0  # Free through Navigator AI
-            
-            # Log cost and performance metrics
+            # Log performance metrics
             logger.info(f"Agent2 Validation Complete:")
-            logger.info(f"Tokens - Total: {total_tokens}, Input: {prompt_tokens}, Output: {completion_tokens}")
-            logger.info(f"Estimated Cost: ${estimated_cost:.4f}")
+            logger.info(f"Tokens Used: {total_tokens}")
             logger.info(f"Processing Time: {processing_time:.2f}s")
             
             # Parse the structured response
@@ -157,8 +227,6 @@ SUMMARY:
             return {
                 'validation_report': validation_result,
                 'parsed_report': parsed_report,
-                'tokens_used': total_tokens,
-                'estimated_cost': estimated_cost,
                 'processing_time': processing_time,
                 'success': True
             }
@@ -239,21 +307,25 @@ CORRECTIONS (if NON-COMPLIANT or REQUIRES FURTHER REVIEW):
             """
             
             response = self.client.chat.completions.create(
-                model=self.text_model,
+                model=self.validation_model,
+                max_completion_tokens=2000,
                 messages=[
                     {
                         "role": "user",
-                        "content": specific_prompt
+                        "content": [{"type": "text", "text": specific_prompt}]
                     }
-                ],
-                max_tokens=2000,
-                temperature=self.temperature
+                ]
             )
             
+            element_text = response.choices[0].message.content
+            if not element_text or not element_text.strip():
+                raise RuntimeError(f"Element validation returned empty output")
+            
+            total_tokens = response.usage.total_tokens if response.usage else 0
+            
             return {
-                'element_validation': response.choices[0].message.content,
+                'element_validation': element_text,
                 'element_type': element_type,
-                'tokens_used': response.usage.total_tokens,
                 'success': True
             }
             
@@ -311,20 +383,24 @@ Format as a professional document suitable for official submission.
             """
             
             response = self.client.chat.completions.create(
-                model=self.text_model,
+                model=self.summary_model,
+                max_completion_tokens=3000,
                 messages=[
                     {
                         "role": "user",
-                        "content": report_prompt
+                        "content": [{"type": "text", "text": report_prompt}]
                     }
-                ],
-                max_tokens=3000,
-                temperature=0.1
+                ]
             )
             
+            report_text = response.choices[0].message.content
+            if not report_text or not report_text.strip():
+                raise RuntimeError(f"Summary model returned empty output")
+            
+            total_tokens = response.usage.total_tokens if response.usage else 0
+            
             return {
-                'compliance_report': response.choices[0].message.content,
-                'tokens_used': response.usage.total_tokens,
+                'compliance_report': report_text,
                 'success': True
             }
             
@@ -434,3 +510,5 @@ Format as a professional document suitable for official submission.
             'review_required': review_required,
             'compliance_percentage': compliance_percentage
         }
+
+    # Removed _extract_text - now using response.choices[0].message.content directly

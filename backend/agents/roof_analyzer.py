@@ -4,67 +4,57 @@ Extracts structural information from roof design drawings using GPT-4o Vision AP
 """
 
 import base64
-import io
 import logging
 import time
-from PIL import Image
-from openai import OpenAI
 from typing import Dict, Optional, Any
+
+from openai import OpenAI
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+from .image_utils import document_bytes_to_image
+
 class RoofDesignAnalyzer:
     """
     Agent 1: Roof Design Analyzer
-    Uses Mistral Small 3.1 Vision API to extract detailed structural information from design drawings
-    Enhanced with specialized prompts for maximum accuracy on technical drawings
+    Uses OpenAI GPT-5 Vision to extract detailed structural information from design drawings.
+    Optimized for dense sheets with roof + wall section details.
     """
     
-    def __init__(self, api_key: str, base_url: str = "https://api.ai.it.ufl.edu"):
-        """Initialize the roof design analyzer with Navigator AI API key."""
-        self.client = OpenAI(api_key=api_key, base_url=base_url)
+    def __init__(
+        self,
+        api_key: str,
+        api_base: str = "https://api.openai.com/v1",
+        vision_model: str = "gpt-5.1"
+    ):
+        """Initialize the roof design analyzer with OpenAI credentials."""
+        self.client = OpenAI(api_key=api_key, base_url=api_base)
         self.analysis_cache = {}
         
         # Configuration
-        self.vision_model = "mistral-small-3.1"
-        self.max_tokens = 6000  # Increased for detailed technical analysis
-        self.temperature = 0.1  # Low temperature for consistent technical analysis
-        self.max_image_size = (1024, 1024)
+        self.vision_model = vision_model
+        self.max_completion_tokens = 4500  # allow larger extractions with lower latency
+        self.temperature = 0.1  # low temperature for consistent technical analysis
         
     def encode_image(self, image_file) -> Optional[str]:
-        """Convert image file to base64 string for Navigator AI Vision API."""
+        """Convert image/PDF file to base64 string for the Vision API."""
         try:
-            if hasattr(image_file, 'read'):
-                # File-like object
-                image_bytes = image_file.read()
-                if hasattr(image_file, 'seek'):
-                    image_file.seek(0)  # Reset file pointer
-            else:
-                # Already bytes
-                image_bytes = image_file
-                
-            # Convert to PIL Image to ensure compatibility
-            image = Image.open(io.BytesIO(image_bytes))
-            
-            # Convert to RGB if necessary
-            if image.mode != 'RGB':
-                image = image.convert('RGB')
-            
-            # Resize if too large (OpenAI has size limits)
-            if image.size[0] > self.max_image_size[0] or image.size[1] > self.max_image_size[1]:
-                image.thumbnail(self.max_image_size, Image.Resampling.LANCZOS)
-            
-            # Convert back to bytes
-            buffer = io.BytesIO()
-            image.save(buffer, format='JPEG', quality=85)
-            image_bytes = buffer.getvalue()
-            
-            return base64.b64encode(image_bytes).decode('utf-8')
-            
+            upload_bytes = self._read_upload_bytes(image_file)
+            normalized_bytes = document_bytes_to_image(upload_bytes)
+            return base64.b64encode(normalized_bytes).decode("utf-8")
         except Exception as e:
             raise Exception(f"Error processing image: {str(e)}")
+
+    @staticmethod
+    def _read_upload_bytes(image_file) -> bytes:
+        if hasattr(image_file, "read"):
+            data = image_file.read()
+            if hasattr(image_file, "seek"):
+                image_file.seek(0)
+            return data
+        return image_file
 
     def analyze_roof_design(self, image_file, filename: Optional[str] = None) -> Dict[str, Any]:
         """
@@ -87,107 +77,134 @@ class RoofDesignAnalyzer:
             if not base64_image:
                 raise Exception("Failed to encode image")
             
-            # Optimized prompt for Mistral Small 3.1 - Enhanced accuracy and structure
+            # Vision prompt tuned for roof detail extraction from architectural sections
             analysis_prompt = """
-ROLE:
-You are an expert structural engineer extracting technical data from roof design drawings. Your job is to transcribe ALL visible specifications exactly as shown—no assumptions, no validation, no opinions.
+You are an expert structural engineer specializing in residential roof construction analysis.
 
-INPUT:
-[Roof drawing(s) provided]
+TASK: Extract ALL roof-related information from this architectural drawing.
 
-STRICT EXTRACTION RULES:
-- Report only what is explicitly shown in text/labels/dimensions. Do not infer typical values.
-- Preserve units and wording exactly as printed; you may add a normalized value in parentheses (e.g., 7/16" (0.4375 in)).
-- If a field exists but text is unreadable, write “not legible”.
-- If an item does not appear anywhere on the drawing(s), write “not specified”.
-- Spans: Report explicit dimension strings. Only compute spans if a drawing scale or graphic bar is shown; otherwise write “not dimensioned”.
-- Rafter/truss spacing: record the exact “O.C.” values as shown (e.g., 24" O.C., 19.2" O.C.).
-- Slope/Pitch: list every roof plane with its slope in rise:run (vertical:horizontal) if shown (e.g., 3:12). If only degrees are printed and no ratio is shown, write “degrees only: [X°]”.
-- Capture “TYP.” notes with scope (e.g., “16" O.C. TYP. unless noted”).
-- Capture detail references (e.g., 3/A4.2) and product approval/NOA numbers if present.
-- Each fact goes in one place only. If a note does not fit any field below, put it under OTHER NOTES.
-- Output must exactly match the plain-text schema below—no extra lines or headings.
+This drawing may show:
+- Wall sections with roof details
+- Roof framing plans
+- Eave/overhang details  
+- Roof-to-wall connections
+- Multiple sections/details on one sheet
 
-OUTPUT FORMAT (plain text only):
-DIMENSIONS FOUND:
-- Rafter spacing: [values as shown; use semicolons if multiple]
-- Spans: [dimension strings; or "not dimensioned"/"not specified"]
-- Lumber sizes: [list; or "not specified"]
-- Thicknesses: [list; or "not specified"]
+OUTPUT STRUCTURE (use exactly this format):
 
-MATERIALS IDENTIFIED:
-- Sheathing: [type/thickness; edge support if shown; or "not specified"]
-- Lumber grade/species: [value; or "not specified"/"not legible"]
-- Fasteners: [type/size/schedule; or "not specified"]
-- Insulation: [type, location, R-value, thickness; or "not specified"]
-- Underlayment: [type/layers/laps/fastening if shown; or "not specified"]
-- Roofing: [material/system; or "not specified"]
-- Hardware: [straps/clips/hangers/part numbers; or "not specified"]
+DRAWING_TYPE: [wall section / roof framing / eave detail / combination]
 
-SLOPE/PITCH DETAILS:
-- Roof planes: [plane label/area if shown] - [pitch ratio]; [repeat per plane] 
-  [If only degrees are printed, use "degrees only: X°"]
+NUMBER_OF_SECTIONS: [how many distinct sections or details are visible]
 
-STRUCTURAL ELEMENTS:
-- Rafters/Trusses: [member type/size/notes; or "not specified"]
-- Connections: [fastening/connector details; or "not specified"]
-- Edge support: [H-clips/blocked/notes; or "not specified"]
-- Detail refs: [e.g., 3/A4.2; list; or "not specified"]
+---
+SECTION_1:
+  Label: [section identifier if visible, otherwise "Unlabeled Section 1"]
+  
+  ROOF_FRAMING:
+    Type: [trusses / rafters / joists / not shown]
+    Size: [dimensions if visible, e.g., "2x10", "prefab wood trusses"]
+    Spacing: [e.g., "24" O.C.", "2'-0" O.C.", or "not shown"]
+    Bearing_Elevation: [height if noted, e.g., "12'-0" A.F.F." or "not shown"]
+    Notes: [any framing notes, bracing requirements, or "none"]
+  
+  ROOF_SHEATHING:
+    Material: [OSB / plywood / not shown]
+    Thickness: [e.g., "7/16"", "1/2"", or "not shown"]
+    Fasteners: [type, size, pattern - e.g., "8D ring shank nails @ 6" O.C." or "not shown"]
+    Notes: [any sheathing-specific callouts or "none"]
+  
+  ROOF_COVERING:
+    Type: [asphalt shingles / metal / tile / not shown]
+    Spec: [e.g., "Galvalume metal", "architectural shingles", or "not shown"]
+    Underlayment: [e.g., "#15 felt", "self-adhering synthetic", or "not shown"]
+    Installation_Notes: [manufacturer requirements, FBC references, or "none"]
+  
+  ROOF_SLOPE:
+    Pitch: [e.g., "3:12", "5:12", "12/3", or "not shown"]
+    Degrees: [if shown in degrees, or "not shown"]
+  
+  ROOF_TO_WALL_CONNECTION:
+    Hardware: [e.g., "Simpson H10 hurricane ties", "metal straps", or "not shown"]
+    Fastening: [connection details if visible, or "not shown"]
+    Load_Path: [how roof loads transfer to wall, or "not shown"]
+  
+  ROOF_INSULATION:
+    Type: [spray foam / batt / rigid / not shown]
+    R_Value: [e.g., "R-38", "R-30", or "not shown"]
+    Location: [attic space / roof deck / not shown]
+    Ventilation: [vented / non-vented attic, or "not shown"]
+  
+  ROOF_EDGE_DETAILS:
+    Fascia: [material and size, or "not shown"]
+    Soffit: [material and width, or "not shown"]
+    Drip_Edge: [type if specified, or "not shown"]
+    Gutter: [if shown, or "not shown"]
+  
+  GENERAL_NOTES:
+    - [list all visible notes, callouts, dimensions related to roof]
+    - [code references: FBC, manufacturer requirements]
+    - [field verification notes]
+    - [if none: "No additional notes"]
 
-OTHER NOTES:
-- [verbatim notes that do not fit the above, e.g., bearing elevations like “Truss bearing 9'-4" A.F.F. field verify”, “Beam bearing 12'-0" A.F.F.”, “Roll-up door verify size and installation”, general finish notes, product approvals/NOA numbers, etc.; or "none"]
+---
+SECTION_2:
+  [repeat same structure if additional sections exist]
 
-CONSTRAINTS:
-- Plain text only. No markdown or extra commentary.
-- Do not validate or judge compliance; extraction only.
-- If a field has multiple values (e.g., several pitches or fastener schedules), list them separated by semicolons in the order they appear.
+---
+[Continue for all sections/details visible]
 
-            """
-            
+EXTRACTION_COMPLETENESS:
+  Readable_Text: [percentage estimate of text you could read clearly]
+  Missing_Information: [list what roof elements are typically shown but not visible here]
+  Confidence: [HIGH / MEDIUM / LOW - based on drawing quality and completeness]
+
+CRITICAL_SPECIFICATIONS:
+  [List the 5-7 most important roof specifications extracted, with exact quoted values]
+
+STRICT RULES:
+- Quote text EXACTLY as it appears (preserve case, punctuation, units)
+- Mark "not shown" for any missing information - never guess or assume
+- If text is illegible, note "text present but illegible"
+- Include ALL visible dimensions, elevations, and measurements
+- Capture all code references (FBC 2023, manufacturer specs, etc.)
+- For multiple sections, analyze each one separately and completely
+"""
+
             # Prepare the API request
             messages = [
                 {
                     "role": "user",
                     "content": [
                         {
-                            "type": "text",
+                            "type": "input_text",
                             "text": analysis_prompt
                         },
                         {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:image/jpeg;base64,{base64_image}",
-                                "detail": "high"
-                            }
+                            "type": "input_image",
+                            "image_url": f"data:image/jpeg;base64,{base64_image}"
                         }
                     ]
                 }
             ]
             
-            # Call Navigator AI Vision API
             response = self.client.chat.completions.create(
                 model=self.vision_model,
-                messages=messages,
-                max_tokens=self.max_tokens,
-                temperature=self.temperature
+                max_completion_tokens=self.max_completion_tokens,
+                messages=messages
             )
             
+            # Extract response content directly
             analysis_result = response.choices[0].message.content
+            if not analysis_result or not analysis_result.strip():
+                raise RuntimeError(f"Vision model returned empty output")
             
-            # Calculate processing time and cost
+            # Calculate processing time
             processing_time = time.time() - start_time
-            total_tokens = response.usage.total_tokens
-            prompt_tokens = response.usage.prompt_tokens
-            completion_tokens = response.usage.completion_tokens
+            total_tokens = response.usage.total_tokens if response.usage else 0
             
-            # Navigator AI Mistral Small 3.1 - Free through university credit
-            # Estimated equivalent value for tracking purposes
-            estimated_cost = 0.0  # Free through Navigator AI
-            
-            # Log cost and performance metrics
+            # Log performance metrics
             logger.info(f"Agent1 Analysis Complete:")
-            logger.info(f"Tokens - Total: {total_tokens}, Input: {prompt_tokens}, Output: {completion_tokens}")
-            logger.info(f"Estimated Cost: ${estimated_cost:.4f}")
+            logger.info(f"Tokens Used: {total_tokens}")
             logger.info(f"Processing Time: {processing_time:.2f}s")
             
             # Store in cache for follow-up questions
@@ -205,8 +222,6 @@ CONSTRAINTS:
             
             return {
                 'analysis': analysis_result,
-                'tokens_used': total_tokens,
-                'estimated_cost': estimated_cost,
                 'processing_time': processing_time,
                 'cache_key': cache_key,
                 'success': True
@@ -255,19 +270,23 @@ Provide factual responses based only on what was extracted from the drawing.
             # Call OpenAI API for follow-up
             response = self.client.chat.completions.create(
                 model=self.vision_model,
+                max_completion_tokens=1000,
                 messages=[
                     {
                         "role": "user",
-                        "content": follow_up_prompt
+                        "content": [{"type": "text", "text": follow_up_prompt}]
                     }
-                ],
-                max_tokens=1000,
-                temperature=self.temperature
+                ]
             )
             
+            answer_text = response.choices[0].message.content
+            if not answer_text or not answer_text.strip():
+                raise RuntimeError(f"Vision follow-up returned empty output")
+            
+            total_tokens = response.usage.total_tokens if response.usage else 0
+            
             return {
-                'answer': response.choices[0].message.content,
-                'tokens_used': response.usage.total_tokens,
+                'answer': answer_text,
                 'success': True
             }
             
@@ -351,3 +370,5 @@ Provide factual responses based only on what was extracted from the drawing.
                 structured_data[current_section][key.strip()] = value.strip()
         
         return structured_data
+
+    # Removed _extract_text - now using response.choices[0].message.content directly
