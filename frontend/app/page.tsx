@@ -125,7 +125,7 @@ export default function HomePage() {
     {
       step: "01",
       title: "Upload Design",
-      description: "Drop your roof design image, CAD file, or technical drawing"
+      description: "Drop your roof design image or technical drawing"
     },
     {
       step: "02", 
