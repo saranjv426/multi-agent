@@ -3,14 +3,13 @@ Authentication Service for Railway PostgreSQL
 Handles user registration, login, password reset operations
 """
 
-from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from email_validator import validate_email, EmailNotValidError
 import logging
 
-from database.models import User, PasswordResetToken
+from database.models import User
 from .security import SecurityManager
 from .email_service import EmailService
 
@@ -166,59 +165,22 @@ class AuthenticationService:
             }
     
     async def forgot_password(self, db: Session, email: str, frontend_url: str) -> Dict[str, Any]:
-        """Send password reset email"""
+        """Compatibility no-op for deprecated token-email flow."""
         try:
-            logger.info(f"🔄 Password reset requested for: {email}")
-            
-            # Normalize email
-            email = email.lower().strip()
-            
-            # Find user by email
-            user = db.query(User).filter(User.email == email).first()
-            if not user:
-                # Don't reveal if email exists or not for security
-                logger.warning(f"Password reset requested for non-existent user: {email}")
-                return {
-                    "success": True,
-                    "message": "If this email exists, you will receive a reset link"
-                }
-            
-            # Generate reset token
-            reset_token = self.security.generate_reset_token()
-            expires_at = datetime.utcnow() + timedelta(minutes=30)  # 30 minutes
-            
-            # Store reset token in database
-            db_token = PasswordResetToken(
-                user_id=user.id,
-                token=reset_token,
-                expires_at=expires_at,
-                used=False
-            )
-            
-            db.add(db_token)
-            db.commit()
-            
-            # Send reset email
-            reset_url = f"{frontend_url}/reset-password?token={reset_token}"
-            await self.email.send_password_reset_email(user.email, reset_url)
-            
-            logger.info(f"✅ Password reset email sent to: {email}")
-            
             return {
                 "success": True,
-                "message": "Password reset email sent"
+                "message": "Deprecated endpoint"
             }
             
         except Exception as e:
-            db.rollback()
-            logger.error(f"❌ Error during password reset request: {e}")
+            logger.error(f"❌ Error during deprecated forgot-password flow: {e}")
             return {
                 "success": False,
-                "error": "Failed to send reset email. Please try again."
+                "error": "Forgot password flow failed"
             }
     
-    async def reset_password(self, db: Session, token: str, new_password: str) -> Dict[str, Any]:
-        """Reset user password with token"""
+    async def reset_password(self, db: Session, email: str, new_password: str) -> Dict[str, Any]:
+        """Reset user password with email + new password."""
         try:
             logger.info("🔄 Attempting password reset")
             
@@ -229,34 +191,26 @@ class AuthenticationService:
                     "error": "Password must be at least 8 characters long"
                 }
             
-            # Find and validate reset token
-            db_token = db.query(PasswordResetToken).filter(
-                PasswordResetToken.token == token,
-                PasswordResetToken.used == False,
-                PasswordResetToken.expires_at > datetime.utcnow()
-            ).first()
-            
-            if not db_token:
-                logger.warning("Invalid or expired reset token used")
-                return {
-                    "success": False,
-                    "error": "Invalid or expired reset token"
-                }
-            
-            # Find user
-            user = db.query(User).filter(User.id == db_token.user_id).first()
+            email = email.lower().strip()
+
+            # Find user by email
+            user = db.query(User).filter(User.email == email).first()
             if not user:
-                logger.error(f"User not found for reset token: {db_token.user_id}")
+                logger.warning(f"Password reset requested for unknown email: {email}")
                 return {
                     "success": False,
-                    "error": "Invalid reset token"
+                    "error": "User not found"
+                }
+
+            # Prevent resetting to the existing password
+            if self.security.verify_password(new_password, user.password_hash):
+                return {
+                    "success": False,
+                    "error": "New password must be different from current password"
                 }
             
             # Update password
             user.password_hash = self.security.hash_password(new_password)
-            
-            # Mark token as used
-            db_token.used = True
             
             db.commit()
             
