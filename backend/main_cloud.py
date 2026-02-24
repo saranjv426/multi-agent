@@ -194,7 +194,7 @@ async def validate_roof_design_detailed(
         raise HTTPException(status_code=500, detail=f"Validation failed: {str(e)}")
 
 @app.get("/api/system/status")
-async def get_system_status():
+async def get_system_status(user: Dict[str, Any] = Depends(require_auth)):
     """Get current system status."""
     return {
         "status": "operational",
@@ -207,7 +207,10 @@ async def get_system_status():
     }
 
 @app.post("/generate-pdf-report")
-async def generate_pdf_report(request_data: Dict[str, Any]):
+async def generate_pdf_report(
+    request_data: Dict[str, Any],
+    user: Dict[str, Any] = Depends(require_auth)
+):
     """Generate a professional PDF compliance report."""
     try:
         logger.info("📄 Generating PDF compliance report...")
