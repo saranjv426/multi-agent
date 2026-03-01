@@ -20,9 +20,11 @@ def check_environment():
         print(".env file not found. Creating from template...")
         
         # Create .env from template
-        env_template = """# Navigator AI Configuration
-NAVIGATOR_API_KEY=your_navigator_api_key_here
-NAVIGATOR_BASE_URL=https://api.ai.it.ufl.edu
+        env_template = """# OpenAI Configuration
+OPENAI_API_KEY=your_openai_api_key_here
+OPENAI_API_BASE=https://api.openai.com/v1
+OPENAI_MAIN_MODEL=gpt-5
+OPENAI_SUMMARY_MODEL=gpt-5-mini
 
 # Server Configuration  
 HOST=127.0.0.1
@@ -41,16 +43,16 @@ LOG_LEVEL=INFO"""
             f.write(env_template)
         
         print("Created .env file from template")
-        print("Please edit .env file and add your Navigator AI API key")
+        print("Please edit .env file and add your OpenAI API key")
         return False
     
     # Check if API key is set
     load_dotenv()
     
-    api_key = os.getenv('NAVIGATOR_API_KEY')
-    if not api_key or api_key == 'your_navigator_api_key_here':
-        print("NAVIGATOR_API_KEY not set in .env file")
-        print("Please edit the .env file and add your Navigator AI API key")
+    api_key = os.getenv('OPENAI_API_KEY')
+    if not api_key or api_key == 'your_openai_api_key_here':
+        print("OPENAI_API_KEY not set in .env file")
+        print("Please edit the .env file and add your OpenAI API key")
         return False
     
     print("Environment configuration looks good")

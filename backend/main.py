@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 # Initialize FastAPI app
 app = FastAPI(
     title="Roof Design Validation API",
-    description="API for automated building code compliance checking using Navigator AI GPT-4o",
+    description="API for automated building code compliance checking using OpenAI GPT-5",
     version="1.0.0"
 )
 
@@ -77,10 +77,20 @@ async def startup_event():
         logger.info("✅ Authentication service initialized")
         
         # Initialize orchestrators
-        orchestrator = RoofValidationOrchestrator(settings.navigator_api_key, settings.navigator_base_url)
-        optimized_validator = OptimizedRoofValidator(settings.navigator_api_key, settings.navigator_base_url)
-        logger.info("✅ Orchestrator initialized successfully with Navigator AI")
-        logger.info("✅ Optimized validator initialized successfully with Navigator AI")
+        orchestrator = RoofValidationOrchestrator(
+            settings.openai_api_key,
+            settings.openai_api_base,
+            settings.openai_main_model,
+            settings.openai_summary_model
+        )
+        optimized_validator = OptimizedRoofValidator(
+            settings.openai_api_key,
+            settings.openai_api_base,
+            settings.openai_main_model,
+            settings.openai_summary_model
+        )
+        logger.info("✅ Orchestrator initialized successfully with OpenAI GPT-5")
+        logger.info("✅ Optimized validator initialized successfully with OpenAI GPT-5")
         
     except Exception as e:
         logger.error(f"❌ Failed to initialize services: {e}")

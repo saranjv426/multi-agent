@@ -17,12 +17,14 @@ class Config:
     """Application configuration settings"""
     
     # Required parameters (no defaults)
-    navigator_api_key: str
+    openai_api_key: str
     database_url: str
     jwt_secret_key: str
     
     # Optional parameters (with defaults)
-    navigator_base_url: str = "https://api.ai.it.ufl.edu"
+    openai_api_base: str = "https://api.openai.com/v1"
+    openai_main_model: str = "gpt-5.1"
+    openai_summary_model: str = "gpt-5-mini"
     host: str = "127.0.0.1"
     port: int = 8000
     debug: bool = True
@@ -34,8 +36,8 @@ class Config:
     
     def __post_init__(self):
         """Validate configuration after initialization"""
-        if not self.navigator_api_key:
-            raise ValueError("NAVIGATOR_API_KEY is required but not set")
+        if not self.openai_api_key:
+            raise ValueError("OPENAI_API_KEY is required but not set")
         
         if not self.database_url:
             raise ValueError("DATABASE_URL is required but not set")
@@ -61,10 +63,10 @@ def get_config() -> Config:
     """
     
     # Required configuration
-    navigator_api_key = os.getenv("NAVIGATOR_API_KEY")
-    if not navigator_api_key:
+    openai_api_key = os.getenv("OPENAI_API_KEY") or os.getenv("NAVIGATOR_API_KEY")
+    if not openai_api_key:
         raise ValueError(
-            "NAVIGATOR_API_KEY environment variable is required. "
+            "OPENAI_API_KEY environment variable is required. "
             "Please set it in your .env file or environment."
         )
     
@@ -86,8 +88,10 @@ def get_config() -> Config:
     
     # Optional configuration with defaults
     config = Config(
-        navigator_api_key=navigator_api_key,
-        navigator_base_url=os.getenv("NAVIGATOR_BASE_URL", "https://api.ai.it.ufl.edu"),
+        openai_api_key=openai_api_key,
+        openai_api_base=os.getenv("OPENAI_API_BASE", "https://api.openai.com/v1"),
+        openai_main_model=os.getenv("OPENAI_MAIN_MODEL", "gpt-5.1"),
+        openai_summary_model=os.getenv("OPENAI_SUMMARY_MODEL", "gpt-5-mini"),
         database_url=database_url,
         jwt_secret_key=jwt_secret_key,
         host=os.getenv("HOST", "0.0.0.0"),  # Changed for cloud deployment

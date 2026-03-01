@@ -79,9 +79,12 @@ STEP 6: CONFIGURE BACKEND ENVIRONMENT
 
 6.1 Create Environment File:
    In the backend directory, create a file named ".env" with the following content:
-   (Replace YOUR_OPENAI_API_KEY_HERE with your actual API key from Step 3)
+   (Replace YOUR_OPENAI_API_KEY_HERE with your actual API key)
    
    OPENAI_API_KEY=YOUR_OPENAI_API_KEY_HERE
+   OPENAI_API_BASE=https://api.openai.com/v1
+   OPENAI_MAIN_MODEL=gpt-5
+   OPENAI_SUMMARY_MODEL=gpt-5-mini
    HOST=127.0.0.1
    PORT=8000
    DEBUG=true

@@ -15,6 +15,11 @@ import re
 import base64
 from typing import Dict, Any, Optional
 
+try:
+    from agents.image_utils import document_bytes_to_image
+except ImportError:
+    document_bytes_to_image = None
+
 class ComplianceReportGenerator:
     """
     Generate professional PDF compliance reports for roof design validation
@@ -251,14 +256,10 @@ class ComplianceReportGenerator:
         story.append(Paragraph("1. Design", self.styles['SectionHeader']))
         
         try:
-            # Decode base64 image data
-            if image_data.startswith('data:image'):
-                # Remove data URL prefix if present
-                image_data = image_data.split(',')[1]
+            image_bytes = self._decode_image_data(image_data)
+            if not image_bytes:
+                raise ValueError("Image bytes unavailable")
             
-            image_bytes = base64.b64decode(image_data)
-            
-            # Create image from bytes
             image_buffer = io.BytesIO(image_bytes)
             img = Image(image_buffer)
             
@@ -301,6 +302,33 @@ class ComplianceReportGenerator:
             story.append(Spacer(1, 12))
         
         return story
+    
+    def _decode_image_data(self, image_data: Optional[str]) -> Optional[bytes]:
+        """Decode base64 input into displayable image bytes, converting PDFs if necessary."""
+        if not image_data:
+            return None
+        
+        raw_data = image_data
+        mime_type = ""
+        if image_data.startswith("data:"):
+            header, payload = image_data.split(",", 1)
+            raw_data = payload
+            mime_type = header.split(";")[0].split(":")[1]
+        
+        try:
+            binary = base64.b64decode(raw_data)
+        except Exception:
+            return None
+        
+        if (mime_type == "application/pdf" or binary.startswith(b"%PDF")) and document_bytes_to_image:
+            try:
+                binary = document_bytes_to_image(binary)
+            except Exception:
+                return None
+        elif mime_type == "application/pdf":
+            return None
+        
+        return binary
     
     def _build_executive_summary(self, validation_data: Dict[str, Any]) -> list:
         """Build executive summary section with hierarchical structure"""
