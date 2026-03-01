@@ -17,7 +17,6 @@ import {
   ClockIcon,
   ShieldCheckIcon
 } from '@heroicons/react/24/outline'
-import axios from 'axios'
 import { api } from '../lib/api'
 
 interface UploadInterfaceProps {
@@ -25,14 +24,28 @@ interface UploadInterfaceProps {
 }
 
 interface ValidationResult {
-  analysis: string
-  validation_report: string
+  filename?: string
+  analysis?: string
+  validation_report?: string
   compliance_report?: string
-  parsed_report: any
-  estimated_cost: number
-  processing_time: number
+  parsed_report?: any
+  estimated_cost?: number
+  processing_time?: number
   success: boolean
   error?: string
+}
+
+interface BatchValidationResponse {
+  success: boolean
+  total_files: number
+  successful_files: number
+  failed_files: number
+  results: ValidationResult[]
+}
+
+interface UploadedDesign {
+  file: File
+  preview: string | null
 }
 
 interface AnalysisStep {
@@ -43,41 +56,44 @@ interface AnalysisStep {
   icon: React.ComponentType<any>
 }
 
+const MAX_FILES = 3
+const MAX_FILE_SIZE = 10 * 1024 * 1024
+const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf']
+
 export default function UploadInterface({ onBack }: UploadInterfaceProps) {
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null)
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedDesign[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
   const [currentStep, setCurrentStep] = useState(0)
-  const [validationResult, setValidationResult] = useState<ValidationResult | null>(null)
+  const [validationResults, setValidationResults] = useState<ValidationResult[]>([])
   const [showResults, setShowResults] = useState(false)
-  const [imagePreview, setImagePreview] = useState<string | null>(null)
-  // Always use optimized mode - removed toggle for simplicity
+  const [selectedResultIndex, setSelectedResultIndex] = useState(0)
 
   const analysisSteps: AnalysisStep[] = [
     {
       id: 'upload',
       title: 'Image Processing',
-      description: 'Preparing your design file for analysis',
+      description: 'Preparing your uploaded design files for analysis',
       status: 'pending',
       icon: CloudArrowUpIcon
     },
     {
       id: 'analysis',
       title: 'AI Design Analysis',
-      description: 'Extracting structural specifications',
-      status: 'pending', 
+      description: 'Extracting structural specifications from each design',
+      status: 'pending',
       icon: EyeIcon
     },
     {
       id: 'validation',
       title: 'Code Validation',
-      description: 'Checking compliance against Florida Building Code',
+      description: 'Checking each design against Florida Building Code',
       status: 'pending',
       icon: ShieldCheckIcon
     },
     {
       id: 'report',
       title: 'Report Generation',
-      description: 'Creating your compliance report',
+      description: 'Preparing individual compliance reports',
       status: 'pending',
       icon: DocumentIcon
     }
@@ -86,46 +102,65 @@ export default function UploadInterface({ onBack }: UploadInterfaceProps) {
   const [steps, setSteps] = useState(analysisSteps)
 
   const updateStepStatus = (stepIndex: number, status: AnalysisStep['status']) => {
-    setSteps(prev => prev.map((step, index) => 
+    setSteps(prev => prev.map((step, index) =>
       index === stepIndex ? { ...step, status } : step
     ))
   }
 
-  const onDrop = useCallback((acceptedFiles: File[]) => {
-    if (acceptedFiles.length > 0) {
-      const file = acceptedFiles[0]
-      
-      // Validate file type
-      const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf']
-      if (!allowedTypes.includes(file.type)) {
-        toast.error('Please upload an image (PNG, JPG, JPEG)')
+  const fileToPreview = (file: File): Promise<string | null> =>
+    new Promise((resolve, reject) => {
+      if (!file.type.startsWith('image/')) {
+        resolve(null)
         return
       }
-      
-      // Validate file size (10MB limit)
-      if (file.size > 10 * 1024 * 1024) {
-        toast.error('File size must be less than 10MB')
-        return
-      }
-      
-      // Create image preview for display
-      if (file.type.startsWith('image/')) {
-        const reader = new FileReader()
-        reader.onload = (e) => {
-          setImagePreview(e.target?.result as string)
-        }
-        reader.readAsDataURL(file)
-      } else {
-        setImagePreview(null) // PDF files won't show preview
-      }
-      
-      setUploadedFile(file)
-      setShowResults(false)
-      setValidationResult(null)
-      setSteps(analysisSteps) // Reset steps
-      toast.success('File uploaded successfully!')
+
+      const reader = new FileReader()
+      reader.onload = () => resolve(reader.result as string)
+      reader.onerror = reject
+      reader.readAsDataURL(file)
+    })
+
+  const onDrop = useCallback(async (acceptedFiles: File[]) => {
+    if (!acceptedFiles.length) {
+      return
     }
-  }, [])
+
+    const availableSlots = MAX_FILES - uploadedFiles.length
+    if (availableSlots <= 0) {
+      toast.error(`You can upload up to ${MAX_FILES} files only`)
+      return
+    }
+
+    const incoming = acceptedFiles.slice(0, availableSlots)
+    const invalidType = incoming.find(file => !ALLOWED_TYPES.includes(file.type))
+    if (invalidType) {
+      toast.error('Only PNG, JPG, JPEG, GIF, and PDF files are supported')
+      return
+    }
+
+    const oversized = incoming.find(file => file.size > MAX_FILE_SIZE)
+    if (oversized) {
+      toast.error(`"${oversized.name}" exceeds the 10MB limit`)
+      return
+    }
+
+    const uploads: UploadedDesign[] = []
+    for (const file of incoming) {
+      const preview = await fileToPreview(file)
+      uploads.push({ file, preview })
+    }
+
+    setUploadedFiles(prev => [...prev, ...uploads])
+    setShowResults(false)
+    setValidationResults([])
+    setSelectedResultIndex(0)
+    setSteps(analysisSteps)
+    toast.success(`${uploads.length} file(s) added`)
+
+    if (acceptedFiles.length > availableSlots) {
+      toast(`Only first ${availableSlots} file(s) were added`)
+    }
+  }, [uploadedFiles.length])
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -133,35 +168,34 @@ export default function UploadInterface({ onBack }: UploadInterfaceProps) {
       'image/*': ['.png', '.jpg', '.jpeg', '.gif'],
       'application/pdf': ['.pdf']
     },
-    multiple: false
+    multiple: true,
+    maxFiles: MAX_FILES
   })
 
   const handleValidation = async () => {
-    if (!uploadedFile) {
-      toast.error('Please upload a file first')
+    if (!uploadedFiles.length) {
+      toast.error('Please upload at least one file')
       return
     }
 
     setIsProcessing(true)
     setCurrentStep(0)
-    
+
     try {
-      // Step 1: Upload Processing
       updateStepStatus(0, 'processing')
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      await new Promise(resolve => setTimeout(resolve, 600))
       updateStepStatus(0, 'completed')
       setCurrentStep(1)
 
-      // Step 2: AI Analysis
       updateStepStatus(1, 'processing')
       const formData = new FormData()
-      formData.append('file', uploadedFile)
+      uploadedFiles.forEach(({ file }) => formData.append('files', file))
 
-      // Use the new API utility for better error handling
-      // Important: do NOT set Content-Type for FormData; browser will set correct boundary
-      const response = await api.post('/api/validation/validate-optimized', formData)
-      
-      // Handle API errors
+      const response = await api.post<BatchValidationResponse>(
+        '/api/validation/validate-optimized-batch',
+        formData
+      )
+
       if (response.error) {
         if (response.status === 401) {
           toast.error('Your session has expired. Please log in again.')
@@ -169,53 +203,61 @@ export default function UploadInterface({ onBack }: UploadInterfaceProps) {
         }
         throw new Error(response.error)
       }
-      
-      if (!response.data) {
-        throw new Error('No data received from server')
+
+      if (!response.data?.results?.length) {
+        throw new Error('No validation data returned from server')
       }
-      
+
       updateStepStatus(1, 'completed')
       setCurrentStep(2)
-      
-      // Step 3: Validation
+
       updateStepStatus(2, 'processing')
-      await new Promise(resolve => setTimeout(resolve, 1500))
+      await new Promise(resolve => setTimeout(resolve, 900))
       updateStepStatus(2, 'completed')
       setCurrentStep(3)
-      
-      // Step 4: Report Generation
+
       updateStepStatus(3, 'processing')
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      await new Promise(resolve => setTimeout(resolve, 500))
       updateStepStatus(3, 'completed')
-      
-      setValidationResult(response.data)
+
+      setValidationResults(response.data.results)
+      setSelectedResultIndex(0)
       setShowResults(true)
-      toast.success('Validation completed successfully!')
-      
+
+      const { successful_files, total_files } = response.data
+      if (successful_files === total_files) {
+        toast.success(`Validation completed for all ${total_files} file(s)!`)
+      } else {
+        toast(`Validation completed: ${successful_files}/${total_files} successful`)
+      }
     } catch (error: any) {
       console.error('Validation error:', error)
       updateStepStatus(currentStep, 'error')
-      
-      const errorMessage = error.message || 'An error occurred during validation'
-      toast.error(errorMessage)
+      toast.error(error.message || 'An error occurred during validation')
     } finally {
       setIsProcessing(false)
     }
   }
 
-  const removeFile = () => {
-    setUploadedFile(null)
-    setValidationResult(null)
+  const removeFile = (index: number) => {
+    setUploadedFiles(prev => prev.filter((_, i) => i !== index))
+    setValidationResults([])
     setShowResults(false)
-    setImagePreview(null)
+    setSelectedResultIndex(0)
     setSteps(analysisSteps)
   }
 
-  // Extract overall compliance status from validation report
+  const clearAllFiles = () => {
+    setUploadedFiles([])
+    setValidationResults([])
+    setShowResults(false)
+    setSelectedResultIndex(0)
+    setSteps(analysisSteps)
+  }
+
   const getComplianceStatus = (report: string): string => {
     if (!report) return 'Unknown'
-    
-    // Look for overall status patterns (updated to match our prompt output)
+
     const statusPatterns = [
       /OVERALL STATUS:\s*(COMPLIANT|NON-COMPLIANT|REQUIRES FURTHER REVIEW|MISSING)/i,
       /STATUS:\s*(COMPLIANT|NON-COMPLIANT|REQUIRES FURTHER REVIEW|MISSING)/i,
@@ -223,126 +265,101 @@ export default function UploadInterface({ onBack }: UploadInterfaceProps) {
       /COMPLIANCE:\s*(COMPLIANT|NON-COMPLIANT|REQUIRES FURTHER REVIEW|MISSING)/i,
       /RESULT:\s*(COMPLIANT|NON-COMPLIANT|REQUIRES FURTHER REVIEW|MISSING)/i
     ]
-    
+
     for (const pattern of statusPatterns) {
       const match = report.match(pattern)
       if (match) {
         return match[1].toUpperCase()
       }
     }
-    
-    // Fallback: check if report contains compliance indicators
-    if (report.includes('NON-COMPLIANT')) {
-      return 'NON-COMPLIANT'
-    } else if (report.includes('REQUIRES FURTHER REVIEW')) {
-      return 'REQUIRES FURTHER REVIEW'
-    } else if (report.includes('MISSING')) {
-      return 'MISSING'
-    } else if (report.includes('COMPLIANT')) {
-      return 'COMPLIANT'
-    }
-    
+
+    if (report.includes('NON-COMPLIANT')) return 'NON-COMPLIANT'
+    if (report.includes('REQUIRES FURTHER REVIEW')) return 'REQUIRES FURTHER REVIEW'
+    if (report.includes('MISSING')) return 'MISSING'
+    if (report.includes('COMPLIANT')) return 'COMPLIANT'
     return 'ANALYSIS COMPLETE'
   }
 
-  const downloadReport = async () => {
-    if (validationResult && uploadedFile) {
-      try {
-        console.log('🔄 Starting PDF download...')
-        console.log('📝 Validation data:', validationResult)
-        console.log('📸 Image file:', uploadedFile.name)
-        const loadingToast = toast.loading('Generating PDF report...')
-        
-        // Convert image to base64
-        const imageBase64 = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader()
-          reader.onload = () => resolve(reader.result as string)
-          reader.onerror = reject
-          reader.readAsDataURL(uploadedFile)
-        })
-        
-        // Prepare payload with both validation data and image
-        const payload = {
-          validation_data: validationResult,
-          image_data: imageBase64,
-          image_filename: uploadedFile.name
-        }
-        
-        // Call the PDF generation endpoint using the new API utility
-        console.log('🌐 Calling PDF generation endpoint...')
-        const response = await api.post('/generate-pdf-report', payload, { responseType: 'blob' } as any)
-        
-        console.log('📡 Response status:', response.status)
-        
-        // Handle API errors
-        if (response.error) {
-          if (response.status === 401) {
-            toast.dismiss(loadingToast)
-            toast.error('Your session has expired. Please log in again.')
-            return
-          }
-          toast.dismiss(loadingToast)
-          throw new Error(response.error)
-        }
-        
-        if (!response.data) {
-          toast.dismiss(loadingToast)
-          throw new Error('No PDF data received from server')
-        }
-        
-        // Convert response data to blob
-        const blob = response.data as Blob
-        console.log('✅ Blob created:', blob.size, 'bytes, type:', blob.type)
-        
-        // Create and download PDF
-        const url = URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = `roof-compliance-report-${Date.now()}.pdf`
-        document.body.appendChild(a)
-        a.click()
-        document.body.removeChild(a)
-        URL.revokeObjectURL(url)
-        
-        console.log('🎉 PDF download completed!')
-        toast.dismiss(loadingToast)
-        toast.success('PDF report downloaded!')
-      } catch (error) {
-        console.error('💥 Error downloading PDF report:', error)
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
-        console.error('📚 Error details:', {
-          message: errorMessage,
-          stack: error instanceof Error ? error.stack : undefined,
-          name: error instanceof Error ? error.name : 'Unknown'
-        })
-        toast.error(`Failed to generate PDF report: ${errorMessage}`)
-        
-        // Fallback to text download if PDF generation fails
-        console.log('📝 Falling back to text download...')
-        const reportContent = validationResult.validation_report || 
-                             validationResult.compliance_report || 
-                             JSON.stringify(validationResult, null, 2)
-        
-        const blob = new Blob([reportContent], { type: 'text/plain' })
-        const url = URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = `roof-validation-report-${Date.now()}.txt`
-        document.body.appendChild(a)
-        a.click()
-        document.body.removeChild(a)
-        URL.revokeObjectURL(url)
-        toast('Downloaded text report as fallback')
+  const downloadReport = async (index: number) => {
+    const result = validationResults[index]
+    const sourceFile = uploadedFiles[index]?.file
+    if (!result || !sourceFile || !result.success) {
+      toast.error('Report is not available for this file')
+      return
+    }
+
+    try {
+      const loadingToast = toast.loading(`Generating PDF for ${sourceFile.name}...`)
+
+      const imageBase64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result as string)
+        reader.onerror = reject
+        reader.readAsDataURL(sourceFile)
+      })
+
+      const payload = {
+        validation_data: result,
+        image_data: imageBase64,
+        image_filename: sourceFile.name
       }
-    } else if (validationResult && !uploadedFile) {
-      toast.error('No image file available for PDF generation')
+
+      const response = await api.post('/generate-pdf-report', payload, { responseType: 'blob' } as any)
+
+      if (response.error) {
+        if (response.status === 401) {
+          toast.dismiss(loadingToast)
+          toast.error('Your session has expired. Please log in again.')
+          return
+        }
+        toast.dismiss(loadingToast)
+        throw new Error(response.error)
+      }
+
+      if (!response.data) {
+        toast.dismiss(loadingToast)
+        throw new Error('No PDF data received from server')
+      }
+
+      const blob = response.data as Blob
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      const safeName = sourceFile.name.replace(/\.[^.]+$/, '').replace(/[^a-zA-Z0-9-_]/g, '_')
+      a.download = `roof-compliance-report-${safeName}-${Date.now()}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+
+      toast.dismiss(loadingToast)
+      toast.success(`Report downloaded for ${sourceFile.name}`)
+    } catch (error) {
+      console.error('Error downloading PDF report:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+      toast.error(`Failed to generate PDF report: ${errorMessage}`)
+
+      const reportContent = result.validation_report ||
+                           result.compliance_report ||
+                           JSON.stringify(result, null, 2)
+      const blob = new Blob([reportContent], { type: 'text/plain' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `roof-validation-report-${Date.now()}.txt`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      toast('Downloaded text report as fallback')
     }
   }
+
+  const selectedResult = validationResults[selectedResultIndex]
 
   return (
     <div className="min-h-screen py-4">
       <div className="container mx-auto px-4 max-w-[1770px]">
-        {/* Header */}
         <div className="flex items-center mb-8">
           <button
             onClick={onBack}
@@ -354,7 +371,6 @@ export default function UploadInterface({ onBack }: UploadInterfaceProps) {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 min-h-[calc(100vh-200px)]">
-          {/* Upload Section */}
           <div className="space-y-4 h-full">
             <motion.div
               className="card"
@@ -362,98 +378,85 @@ export default function UploadInterface({ onBack }: UploadInterfaceProps) {
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.5 }}
             >
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Upload Design File</h2>
-              
-              {!uploadedFile ? (
-                <div
-                  {...getRootProps()}
-                  className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-all duration-200 ${
-                    isDragActive 
-                      ? 'border-primary-500 bg-primary-50' 
-                      : 'border-gray-300 bg-gray-50 hover:border-primary-400 hover:bg-primary-25'
-                  }`}
-                >
-                  <input {...getInputProps()} />
-                  <CloudArrowUpIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  
-                  {isDragActive ? (
-                    <p className="text-primary-600 font-medium">Drop your file here...</p>
-                  ) : (
-                    <>
-                      <p className="text-gray-600 font-medium mb-2">
-                        Drag & drop your roof design file here
-                      </p>
-                      <p className="text-sm text-gray-500 mb-4">
-                        Or click to select a file
-                      </p>
-                      <div className="inline-flex items-center justify-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors">
-                        Choose File
-                      </div>
-                    </>
-                  )}
-                  
-                  <div className="mt-4 text-xs text-gray-500">
-                    Supports: PNG, JPG, JPEG. Max Size: 10MB
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {/* File Info */}
-                  <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <DocumentIcon className="h-8 w-8 text-primary-600" />
-                        <div>
-                          <p className="font-medium text-gray-900">{uploadedFile.name}</p>
-                          <p className="text-sm text-gray-500">
-                            {(uploadedFile.size / (1024 * 1024)).toFixed(2)} MB
-                          </p>
-                        </div>
-                      </div>
-                      <button
-                        onClick={removeFile}
-                        className="p-1 text-gray-400 hover:text-red-500 transition-colors"
-                      >
-                        <XMarkIcon className="h-5 w-5" />
-                      </button>
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">Upload Design Files</h2>
+              <p className="text-sm text-gray-500 mb-4">Upload up to {MAX_FILES} files and validate them in one run.</p>
+
+              <div
+                {...getRootProps()}
+                className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-all duration-200 ${
+                  isDragActive
+                    ? 'border-primary-500 bg-primary-50'
+                    : 'border-gray-300 bg-gray-50 hover:border-primary-400 hover:bg-primary-25'
+                }`}
+              >
+                <input {...getInputProps()} />
+                <CloudArrowUpIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                {isDragActive ? (
+                  <p className="text-primary-600 font-medium">Drop files here...</p>
+                ) : (
+                  <>
+                    <p className="text-gray-600 font-medium mb-2">Drag and drop roof design files</p>
+                    <p className="text-sm text-gray-500 mb-4">Or click to select up to {MAX_FILES} files</p>
+                    <div className="inline-flex items-center justify-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors">
+                      Choose Files
                     </div>
-                  </div>
-                  
-                  {/* Image Preview */}
-                  {imagePreview && (
-                    <div className="border border-gray-200 rounded-lg p-4 bg-white">
-                      <h4 className="font-medium text-gray-900 mb-3">Design Preview</h4>
-                      <div className="relative">
-                        <img 
-                          src={imagePreview} 
-                          alt="Uploaded design"
-                          className="w-full h-80 object-contain rounded-lg border border-gray-200"
+                  </>
+                )}
+                <div className="mt-4 text-xs text-gray-500">
+                  Supports: PNG, JPG, JPEG, GIF, PDF. Max Size: 10MB each
+                </div>
+              </div>
+
+              {!!uploadedFiles.length && (
+                <div className="mt-4 space-y-3">
+                  {uploadedFiles.map((upload, index) => (
+                    <div key={`${upload.file.name}-${upload.file.lastModified}-${index}`} className="border border-gray-200 rounded-lg p-3 bg-gray-50">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <DocumentIcon className="h-7 w-7 text-primary-600" />
+                          <div>
+                            <p className="font-medium text-gray-900">{upload.file.name}</p>
+                            <p className="text-sm text-gray-500">{(upload.file.size / (1024 * 1024)).toFixed(2)} MB</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => removeFile(index)}
+                          className="p-1 text-gray-400 hover:text-red-500 transition-colors"
+                        >
+                          <XMarkIcon className="h-5 w-5" />
+                        </button>
+                      </div>
+                      {upload.preview && (
+                        <img
+                          src={upload.preview}
+                          alt={`Preview ${upload.file.name}`}
+                          className="w-full h-40 object-contain rounded-lg border border-gray-200 bg-white mt-3"
                         />
-                        <div className="absolute top-2 right-2 bg-black/50 text-white text-xs px-2 py-1 rounded">
-                          Preview
-                        </div>
-                      </div>
-                      <p className="text-xs text-gray-500 mt-2 text-center">
-                        You can manually verify the design details before validation
-                      </p>
+                      )}
                     </div>
-                  )}
+                  ))}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {!isProcessing && (
+                      <button onClick={handleValidation} className="btn-primary w-full">
+                        Start Validation
+                      </button>
+                    )}
+                    {!isProcessing && (
+                      <button
+                        onClick={clearAllFiles}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors"
+                      >
+                        Clear All
+                      </button>
+                    )}
+                  </div>
                 </div>
-              )}
-              
-              {uploadedFile && !isProcessing && (
-                <button
-                  onClick={handleValidation}
-                  className="btn-primary w-full mt-4"
-                >
-                  Start Validation
-                </button>
               )}
             </motion.div>
 
-            {/* Progress Section */}
             <AnimatePresence>
-              {(isProcessing || validationResult) && (
+              {(isProcessing || validationResults.length > 0) && (
                 <motion.div
                   className="card"
                   initial={{ opacity: 0, y: 20 }}
@@ -462,9 +465,8 @@ export default function UploadInterface({ onBack }: UploadInterfaceProps) {
                   transition={{ duration: 0.5 }}
                 >
                   <h3 className="text-lg font-semibold text-gray-900 mb-6">Analysis Progress</h3>
-                  
                   <div className="space-y-4">
-                    {steps.map((step, index) => {
+                    {steps.map(step => {
                       const Icon = step.icon
                       return (
                         <div key={step.id} className="flex items-center space-x-4">
@@ -482,12 +484,12 @@ export default function UploadInterface({ onBack }: UploadInterfaceProps) {
                               <Icon className="h-5 w-5" />
                             )}
                           </div>
-                          
+
                           <div className="flex-1">
                             <p className="font-medium text-gray-900">{step.title}</p>
                             <p className="text-sm text-gray-500">{step.description}</p>
                           </div>
-                          
+
                           {step.status === 'processing' && (
                             <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary-600 border-t-transparent"></div>
                           )}
@@ -500,190 +502,176 @@ export default function UploadInterface({ onBack }: UploadInterfaceProps) {
             </AnimatePresence>
           </div>
 
-          {/* Results Section */}
           <div className="space-y-4 h-full">
             <AnimatePresence>
-              {showResults && validationResult && (
+              {showResults && validationResults.length > 0 && (
                 <motion.div
                   className="card"
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ duration: 0.5 }}
                 >
-                  <div className="flex items-center justify-between mb-6">
-                    <h3 className="text-lg font-semibold text-gray-900">Validation Results</h3>
-                    <button
-                      onClick={downloadReport}
-                      className="inline-flex items-center space-x-2 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg transition-colors"
-                    >
-                      <DocumentArrowDownIcon className="h-4 w-4" />
-                      <span>Download Report</span>
-                    </button>
-                  </div>
-                  
-                  {/* Quick Stats */}
-                  <div className="grid grid-cols-2 gap-4 mb-6">
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                      <div className="flex items-center space-x-2">
-                        <ClockIcon className="h-4 w-4 text-blue-600" />
-                        <span className="text-sm font-medium text-blue-800">Processing Time</span>
-                      </div>
-                      <p className="text-lg font-bold text-blue-900 mt-1">
-                        {validationResult.processing_time?.toFixed(1)}s
-                      </p>
-                    </div>
-                    
-                    {(() => {
-                      const status = getComplianceStatus(validationResult.validation_report || '')
+                  <h3 className="text-lg font-semibold text-gray-900 mb-6">Validation Results</h3>
+
+                  <div className="space-y-3 mb-6">
+                    {validationResults.map((result, index) => {
+                      const reportText = result.validation_report || ''
+                      const status = result.success ? getComplianceStatus(reportText) : 'FAILED'
                       const isCompliant = status.includes('COMPLIANT') && !status.includes('NON-COMPLIANT')
                       const isNonCompliant = status.includes('NON-COMPLIANT')
                       const isReview = status.includes('REVIEW')
-                      
-                      const bgColor = isCompliant ? 'bg-green-50 border-green-200' : 
-                                    isNonCompliant ? 'bg-red-50 border-red-200' : 
-                                    isReview ? 'bg-yellow-50 border-yellow-200' : 
-                                    'bg-blue-50 border-blue-200'
-                      
-                      const textColor = isCompliant ? 'text-green-600' : 
-                                      isNonCompliant ? 'text-red-600' : 
-                                      isReview ? 'text-yellow-600' : 
-                                      'text-blue-600'
-                      
-                      const statusColor = isCompliant ? 'text-green-900' : 
-                                        isNonCompliant ? 'text-red-900' : 
-                                        isReview ? 'text-yellow-900' : 
-                                        'text-blue-900'
-                      
-                      const Icon = isCompliant ? CheckCircleIcon : 
-                                  isNonCompliant ? XCircleIcon : 
-                                  isReview ? ExclamationTriangleIcon : 
-                                  CheckCircleIcon
-                      
+                      const isFailed = status === 'FAILED'
+                      const fileName = uploadedFiles[index]?.file.name || result.filename || `File ${index + 1}`
+
                       return (
-                        <div className={`${bgColor} border rounded-lg p-3`}>
-                          <div className="flex items-center space-x-2">
-                            <Icon className={`h-4 w-4 ${textColor}`} />
-                            <span className={`text-sm font-medium ${textColor.replace('600', '800')}`}>Design Status</span>
+                        <div
+                          key={`${fileName}-${index}`}
+                          className={`border rounded-lg p-3 ${selectedResultIndex === index ? 'border-primary-500 bg-primary-50' : 'border-gray-200 bg-white'}`}
+                        >
+                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                            <div>
+                              <p className="font-medium text-gray-900">{fileName}</p>
+                              <div className="text-sm text-gray-600 flex items-center gap-2">
+                                <ClockIcon className="h-4 w-4" />
+                                <span>{result.processing_time?.toFixed(1) ?? '0.0'}s</span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+                                isFailed ? 'bg-red-100 text-red-700' :
+                                isCompliant ? 'bg-green-100 text-green-700' :
+                                isNonCompliant ? 'bg-red-100 text-red-700' :
+                                isReview ? 'bg-yellow-100 text-yellow-700' :
+                                'bg-blue-100 text-blue-700'
+                              }`}>
+                                {status}
+                              </span>
+                              <button
+                                onClick={() => setSelectedResultIndex(index)}
+                                className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-100"
+                              >
+                                View
+                              </button>
+                              <button
+                                onClick={() => downloadReport(index)}
+                                disabled={!result.success}
+                                className="inline-flex items-center space-x-1 bg-primary-600 hover:bg-primary-700 disabled:bg-gray-300 text-white px-3 py-1 rounded-md transition-colors text-sm"
+                              >
+                                <DocumentArrowDownIcon className="h-4 w-4" />
+                                <span>Download</span>
+                              </button>
+                            </div>
                           </div>
-                          <p className={`text-lg font-bold ${statusColor} mt-1`}>
-                            {status}
-                          </p>
                         </div>
                       )
-                    })()}
+                    })}
                   </div>
-                  
-                  {/* Validation Report Preview */}
-                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 max-h-[500px] overflow-y-auto w-full min-h-[450px]">
-                    <h4 className="font-medium text-gray-900 mb-3">Compliance Report Preview</h4>
-                    <div className="text-sm text-gray-700 whitespace-pre-wrap prose prose-sm max-w-none">
-                      {validationResult.validation_report?.split('\n').map((line, index) => {
-                        // Check for markdown headers first (before cleaning)
-                        if (/^###\s*(.+)$/.test(line)) {
-                          const displayText = line.replace(/^###\s*/, '')
-                          return (
-                            <div key={index} className="font-bold text-lg text-blue-600 mt-6 mb-3 border-b border-blue-200 pb-1">
-                              {displayText}
-                            </div>
-                          )
-                        }
-                        
-                        // Check for validation checklist and summary bold headers (make them blue)
-                        if (/^\*\*(VALIDATION CHECKLIST|SUMMARY):\*\*\s*$/.test(line)) {
-                          const displayText = line.replace(/^\*\*(.+):\*\*\s*$/, '$1:')
-                          return (
-                            <div key={index} className="font-bold text-lg text-blue-600 mt-6 mb-3 border-b border-blue-200 pb-1">
-                              {displayText}
-                            </div>
-                          )
-                        }
-                        
-                        // Check for other bold markdown headers (**TEXT:**)
-                        if (/^\*\*([^*]+):\*\*\s*$/.test(line)) {
-                          const displayText = line.replace(/^\*\*(.+):\*\*\s*$/, '$1:')
-                          return (
-                            <div key={index} className="font-bold text-gray-800 mt-4 mb-2">
-                              {displayText}
-                            </div>
-                          )
-                        }
-                        
-                        // Remove asterisks and HTML tags for regular content
-                        const cleanLine = line.replace(/\*\*/g, '').replace(/<[^>]*>/g, '')
-                        
-                        // Style main section headings (fallback for plain text headers)
-                        if (/^(TECHNICAL SPECIFICATIONS|COMPLIANCE ASSESSMENT|CRITICAL FINDINGS|SUMMARY|OVERALL STATUS)/.test(cleanLine)) {
-                          return (
-                            <div key={index} className="font-bold text-lg text-blue-600 mt-6 mb-3 border-b border-blue-200 pb-1">
-                              {cleanLine}
-                            </div>
-                          )
-                        }
-                        
 
-                        
-                        // Style other subsection headings (DIMENSIONS FOUND:, MATERIALS IDENTIFIED:, etc.)
-                        if (/^(DIMENSIONS FOUND|MATERIALS IDENTIFIED|SLOPE\/PITCH DETAILS|STRUCTURAL ELEMENTS|ALL VISIBLE TEXT|CRITICAL FINDINGS|REQUIRED CORRECTIONS|Major Issues|Required Corrections|Professional Recommendations|Overall Assessment|Key Concerns|Next Steps):$/.test(cleanLine)) {
-                          return (
-                            <div key={index} className="font-bold text-gray-800 mt-4 mb-2">
-                              {cleanLine}
-                            </div>
-                          )
-                        }
-                        
-                        // Style validation checklist items with color coding
-                        if (/^(Sheathing|Rafter Spacing\/Spans|Fastening\/Connections|Underlayment|Insulation|Wind Resistance):\s*(COMPLIANT|NON-COMPLIANT|REQUIRES FURTHER REVIEW|MISSING)/.test(cleanLine)) {
-                          const status = cleanLine.match(/:\s*(COMPLIANT|NON-COMPLIANT|REQUIRES FURTHER REVIEW|MISSING)/)?.[1]
-                          
-                          let bgColor = 'bg-gray-50'
-                          let borderColor = 'border-gray-200'
-                          let textColor = 'text-gray-700'
-                          
-                          if (status === 'COMPLIANT') {
-                            bgColor = 'bg-green-50'
-                            borderColor = 'border-green-300'
-                            textColor = 'text-green-800'
-                          } else if (status === 'NON-COMPLIANT') {
-                            bgColor = 'bg-red-50'
-                            borderColor = 'border-red-300'
-                            textColor = 'text-red-800'
-                          } else if (status === 'REQUIRES FURTHER REVIEW') {
-                            bgColor = 'bg-yellow-50'
-                            borderColor = 'border-yellow-300'
-                            textColor = 'text-yellow-800'
-                          } else if (status === 'MISSING') {
-                            bgColor = 'bg-orange-50'
-                            borderColor = 'border-orange-300'
-                            textColor = 'text-orange-800'
-                          }
-                          
-                          return (
-                            <div key={index} className={`font-medium ${textColor} mt-3 mb-2 pl-3 pr-3 py-2 rounded-lg ${bgColor} border-l-4 ${borderColor}`}>
-                              {cleanLine}
-                            </div>
-                          )
-                        }
-                        
-                        // Style other compliance items
-                        if (/^[A-Za-z\s&]+:\s*(COMPLIANT|REVIEW|NON-COMPLIANT)/.test(cleanLine)) {
-                          return (
-                            <div key={index} className="font-medium text-gray-700 mt-2 mb-1">
-                              {cleanLine}
-                            </div>
-                          )
-                        }
-                        
-                        // Regular content
-                        return <div key={index} className="text-gray-600 leading-relaxed">{cleanLine}</div>
-                      })}
+                  {selectedResult && (
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 max-h-[500px] overflow-y-auto w-full min-h-[350px]">
+                      <h4 className="font-medium text-gray-900 mb-3">
+                        Compliance Report Preview - {uploadedFiles[selectedResultIndex]?.file.name || selectedResult.filename || 'Selected File'}
+                      </h4>
+                      {!selectedResult.success ? (
+                        <p className="text-sm text-red-700">
+                          Validation failed: {selectedResult.error || 'Unknown error'}
+                        </p>
+                      ) : (
+                        <div className="text-sm text-gray-700 whitespace-pre-wrap prose prose-sm max-w-none">
+                          {(selectedResult.validation_report || '').split('\n').map((line, idx) => {
+                            if (/^###\s*(.+)$/.test(line)) {
+                              const displayText = line.replace(/^###\s*/, '')
+                              return (
+                                <div key={idx} className="font-bold text-lg text-blue-600 mt-6 mb-3 border-b border-blue-200 pb-1">
+                                  {displayText}
+                                </div>
+                              )
+                            }
 
+                            if (/^\*\*(VALIDATION CHECKLIST|SUMMARY):\*\*\s*$/.test(line)) {
+                              const displayText = line.replace(/^\*\*(.+):\*\*\s*$/, '$1:')
+                              return (
+                                <div key={idx} className="font-bold text-lg text-blue-600 mt-6 mb-3 border-b border-blue-200 pb-1">
+                                  {displayText}
+                                </div>
+                              )
+                            }
+
+                            if (/^\*\*([^*]+):\*\*\s*$/.test(line)) {
+                              const displayText = line.replace(/^\*\*(.+):\*\*\s*$/, '$1:')
+                              return (
+                                <div key={idx} className="font-bold text-gray-800 mt-4 mb-2">
+                                  {displayText}
+                                </div>
+                              )
+                            }
+
+                            const cleanLine = line.replace(/\*\*/g, '').replace(/<[^>]*>/g, '')
+                            if (/^(TECHNICAL SPECIFICATIONS|COMPLIANCE ASSESSMENT|CRITICAL FINDINGS|SUMMARY|OVERALL STATUS)/.test(cleanLine)) {
+                              return (
+                                <div key={idx} className="font-bold text-lg text-blue-600 mt-6 mb-3 border-b border-blue-200 pb-1">
+                                  {cleanLine}
+                                </div>
+                              )
+                            }
+
+                            if (/^(DIMENSIONS FOUND|MATERIALS IDENTIFIED|SLOPE\/PITCH DETAILS|STRUCTURAL ELEMENTS|ALL VISIBLE TEXT|CRITICAL FINDINGS|REQUIRED CORRECTIONS|Major Issues|Required Corrections|Professional Recommendations|Overall Assessment|Key Concerns|Next Steps):$/.test(cleanLine)) {
+                              return (
+                                <div key={idx} className="font-bold text-gray-800 mt-4 mb-2">
+                                  {cleanLine}
+                                </div>
+                              )
+                            }
+
+                            if (/^(Sheathing|Rafter Spacing\/Spans|Fastening\/Connections|Underlayment|Insulation|Wind Resistance):\s*(COMPLIANT|NON-COMPLIANT|REQUIRES FURTHER REVIEW|MISSING)/.test(cleanLine)) {
+                              const status = cleanLine.match(/:\s*(COMPLIANT|NON-COMPLIANT|REQUIRES FURTHER REVIEW|MISSING)/)?.[1]
+                              let bgColor = 'bg-gray-50'
+                              let borderColor = 'border-gray-200'
+                              let textColor = 'text-gray-700'
+
+                              if (status === 'COMPLIANT') {
+                                bgColor = 'bg-green-50'
+                                borderColor = 'border-green-300'
+                                textColor = 'text-green-800'
+                              } else if (status === 'NON-COMPLIANT') {
+                                bgColor = 'bg-red-50'
+                                borderColor = 'border-red-300'
+                                textColor = 'text-red-800'
+                              } else if (status === 'REQUIRES FURTHER REVIEW') {
+                                bgColor = 'bg-yellow-50'
+                                borderColor = 'border-yellow-300'
+                                textColor = 'text-yellow-800'
+                              } else if (status === 'MISSING') {
+                                bgColor = 'bg-orange-50'
+                                borderColor = 'border-orange-300'
+                                textColor = 'text-orange-800'
+                              }
+
+                              return (
+                                <div key={idx} className={`font-medium ${textColor} mt-3 mb-2 pl-3 pr-3 py-2 rounded-lg ${bgColor} border-l-4 ${borderColor}`}>
+                                  {cleanLine}
+                                </div>
+                              )
+                            }
+
+                            if (/^[A-Za-z\s&]+:\s*(COMPLIANT|REVIEW|NON-COMPLIANT)/.test(cleanLine)) {
+                              return (
+                                <div key={idx} className="font-medium text-gray-700 mt-2 mb-1">
+                                  {cleanLine}
+                                </div>
+                              )
+                            }
+
+                            return <div key={idx} className="text-gray-600 leading-relaxed">{cleanLine}</div>
+                          })}
+                        </div>
+                      )}
                     </div>
-                  </div>
+                  )}
                 </motion.div>
               )}
             </AnimatePresence>
-            
-            {/* Placeholder when no results */}
+
             {!showResults && !isProcessing && (
               <motion.div
                 className="card text-center py-12"
@@ -692,12 +680,8 @@ export default function UploadInterface({ onBack }: UploadInterfaceProps) {
                 transition={{ duration: 0.5, delay: 0.2 }}
               >
                 <ShieldCheckIcon className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-600 mb-2">
-                  Upload a file to start validation
-                </h3>
-                <p className="text-gray-500">
-                  Your compliance report will appear here once analysis is complete
-                </p>
+                <h3 className="text-lg font-medium text-gray-600 mb-2">Upload up to 3 files to start validation</h3>
+                <p className="text-gray-500">Each file will get its own analysis result and downloadable report.</p>
               </motion.div>
             )}
           </div>

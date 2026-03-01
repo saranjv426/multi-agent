@@ -6,7 +6,7 @@ RESTful API server for coordinating GPT-4o based validation workflow
 from fastapi import FastAPI, File, UploadFile, HTTPException, BackgroundTasks, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 import os
 import uvicorn
 import logging
@@ -209,6 +209,62 @@ async def validate_roof_design_optimized(
     except Exception as e:
         logger.error(f"Optimized validation failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Optimized validation failed: {str(e)}")
+
+@app.post("/api/validation/validate-optimized-batch")
+async def validate_roof_design_optimized_batch(
+    files: List[UploadFile] = File(...),
+    user: Dict[str, Any] = Depends(require_auth)
+):
+    """
+    Batch optimized validation for up to 3 files in one request.
+    Each file is validated independently and returns a separate result.
+    """
+    if not optimized_validator:
+        raise HTTPException(status_code=503, detail="Optimized validator not initialized")
+
+    if not files:
+        raise HTTPException(status_code=400, detail="At least one file is required")
+
+    if len(files) > 3:
+        raise HTTPException(status_code=400, detail="Maximum 3 files are allowed per request")
+
+    allowed_types = ['image/png', 'image/jpeg', 'image/jpg', 'application/pdf', 'image/gif']
+    results = []
+
+    for file in files:
+        if file.content_type not in allowed_types:
+            results.append({
+                "filename": file.filename,
+                "success": False,
+                "error": f"Unsupported file type: {file.content_type}"
+            })
+            continue
+
+        try:
+            logger.info(f"Starting batch optimized validation for: {file.filename}")
+            file_content = await file.read()
+            result = optimized_validator.validate_roof_design_optimized(
+                file_content,
+                filename=file.filename
+            )
+            result["filename"] = file.filename
+            results.append(result)
+        except Exception as e:
+            logger.error(f"Batch optimized validation failed for {file.filename}: {str(e)}")
+            results.append({
+                "filename": file.filename,
+                "success": False,
+                "error": f"Optimized validation failed: {str(e)}"
+            })
+
+    successful_files = len([r for r in results if r.get("success")])
+    return {
+        "success": successful_files > 0,
+        "total_files": len(files),
+        "successful_files": successful_files,
+        "failed_files": len(files) - successful_files,
+        "results": results
+    }
 
 @app.post("/api/validation/validate-element")
 async def validate_specific_element(
