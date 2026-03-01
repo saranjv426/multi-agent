@@ -7,6 +7,7 @@ import os
 from typing import Optional
 from dataclasses import dataclass
 from dotenv import load_dotenv
+from cors_config import parse_allowed_origins
 
 # Load environment variables from .env file
 load_dotenv()
@@ -102,19 +103,10 @@ def get_config() -> Config:
         frontend_url=os.getenv("FRONTEND_URL", "http://localhost:3000")
     )
     
-    # Parse allowed origins - more flexible for cloud deployment
+    # Parse allowed origins with strict validation.
+    # Wildcards are forbidden because CORS credentials are enabled.
     origins_str = os.getenv("ALLOWED_ORIGINS", "")
-    if origins_str:
-        config.allowed_origins = [origin.strip() for origin in origins_str.split(",")]
-    else:
-        # Default origins including common cloud platforms
-        config.allowed_origins = [
-            "http://localhost:3000",
-            "http://127.0.0.1:3000",
-            "https://*.vercel.app",
-            "https://*.netlify.app",
-            "*"  # For demo purposes - you can restrict this later
-        ]
+    config.allowed_origins = parse_allowed_origins(origins_str)
     
     return config
 

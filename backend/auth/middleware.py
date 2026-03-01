@@ -14,8 +14,9 @@ from .service import AuthenticationService
 
 logger = logging.getLogger(__name__)
 
-# Security scheme for Bearer token
-security_scheme = HTTPBearer()
+# Security scheme for Bearer token.
+# auto_error=False lets us return 401 (instead of FastAPI's default 403) for missing auth.
+security_scheme = HTTPBearer(auto_error=False)
 
 # Global auth service reference (will be set in main.py)
 _auth_service: Optional[AuthenticationService] = None
@@ -35,7 +36,7 @@ def get_auth_service() -> AuthenticationService:
     return _auth_service
 
 async def require_auth(
-    credentials: HTTPAuthorizationCredentials = Depends(security_scheme),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security_scheme),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -52,6 +53,13 @@ async def require_auth(
         HTTPException: If authentication fails
     """
     try:
+        if not credentials:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Not authenticated",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
         # Get authentication service
         auth_service = get_auth_service()
         

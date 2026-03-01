@@ -30,7 +30,7 @@ class ForgotPasswordRequest(BaseModel):
     email: EmailStr
 
 class ResetPasswordRequest(BaseModel):
-    token: str
+    email: EmailStr
     new_password: str
 
 class AuthResponse(BaseModel):
@@ -164,34 +164,28 @@ async def forgot_password(
     service: AuthenticationService = Depends(get_auth_service)
 ):
     """
-    Request password reset email
+    Deprecated endpoint retained for compatibility.
     
     Args:
-        request: Email address for password reset
+        request: Email address
         
     Returns:
-        AuthResponse: Success message (always returns success for security)
+        AuthResponse: Generic guidance message
     """
     try:
-        logger.info(f"🔄 Password reset request for: {request.email}")
-        
-        # Get frontend URL from environment or config
-        import os
-        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
-        
-        result = await service.forgot_password(db, request.email, frontend_url)
+        logger.info(f"🔄 Password reset request (compat) for: {request.email}")
+        await service.forgot_password(db, request.email, "")
         
         return AuthResponse(
             success=True,
-            message="If this email exists, you will receive a reset link"
+            message="Use email and new password in reset password form"
         )
         
     except Exception as e:
         logger.error(f"❌ Forgot password error: {e}")
-        # Always return success for security (don't reveal if email exists)
         return AuthResponse(
             success=True,
-            message="If this email exists, you will receive a reset link"
+            message="Use email and new password in reset password form"
         )
 
 @router.post("/reset-password", response_model=AuthResponse)
@@ -201,10 +195,10 @@ async def reset_password(
     service: AuthenticationService = Depends(get_auth_service)
 ):
     """
-    Reset password using reset token
+    Reset password using email + new password
     
     Args:
-        request: Reset token and new password
+        request: Email and new password
         
     Returns:
         AuthResponse: Success message if password reset successfully
@@ -212,7 +206,7 @@ async def reset_password(
     try:
         logger.info("🔄 Password reset attempt")
         
-        result = await service.reset_password(db, request.token, request.new_password)
+        result = await service.reset_password(db, request.email, request.new_password)
         
         if result["success"]:
             return AuthResponse(

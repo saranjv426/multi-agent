@@ -25,7 +25,6 @@ export default function ForgotPasswordForm({ onSuccess, onBackToLogin }: ForgotP
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
-  const [isResetMode, setIsResetMode] = useState(false)
   const [isSuccess, setIsSuccess] = useState(false)
 
   const { resetPassword } = useAuth()
@@ -41,7 +40,7 @@ export default function ForgotPasswordForm({ onSuccess, onBackToLogin }: ForgotP
   const isPasswordValid = passwordRequirements.every(req => req.met)
   const passwordsMatch = newPassword === confirmPassword && confirmPassword.length > 0
 
-  const handleEmailSubmit = async (e: React.FormEvent) => {
+  const handlePasswordReset = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
 
@@ -50,16 +49,6 @@ export default function ForgotPasswordForm({ onSuccess, onBackToLogin }: ForgotP
       return
     }
 
-    // For this simplified version, we just move to password reset mode
-    // In a real app, this would send an email verification
-    setIsResetMode(true)
-  }
-
-  const handlePasswordReset = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
-
-    // Validation
     if (!isPasswordValid) {
       setError('Please meet all password requirements')
       return
@@ -88,7 +77,6 @@ export default function ForgotPasswordForm({ onSuccess, onBackToLogin }: ForgotP
     }
   }
 
-  const isEmailFormValid = email.length > 0
   const isPasswordFormValid = email.length > 0 && isPasswordValid && passwordsMatch
 
   // Success Step
@@ -124,94 +112,12 @@ export default function ForgotPasswordForm({ onSuccess, onBackToLogin }: ForgotP
     )
   }
 
-  // Email Step
-  if (!isResetMode) {
-    return (
-      <form onSubmit={handleEmailSubmit} className="space-y-6">
-        {/* Back Button */}
-        <button
-          type="button"
-          onClick={onBackToLogin}
-          className="flex items-center space-x-2 text-sm text-gray-600 hover:text-gray-800 transition-colors duration-200"
-        >
-          <ArrowLeftIcon className="h-4 w-4" />
-          <span>Back to Sign In</span>
-        </button>
-
-        {/* Error Message */}
-        {error && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm"
-          >
-            {error}
-          </motion.div>
-        )}
-
-        {/* Instructions */}
-        <div className="text-center">
-          <p className="text-sm text-gray-600 mb-4">
-            Enter your email address to reset your password
-          </p>
-        </div>
-
-        {/* Email Field */}
-        <div className="space-y-2">
-          <label htmlFor="reset-email" className="block text-sm font-medium text-gray-700">
-            Email Address
-          </label>
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <EnvelopeIcon className="h-5 w-5 text-gray-400" />
-            </div>
-            <input
-              id="reset-email"
-              name="email"
-              type="email"
-              autoComplete="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-gray-50 focus:bg-white"
-              placeholder="Enter your email"
-              disabled={isLoading}
-            />
-          </div>
-        </div>
-
-        {/* Submit Button */}
-        <motion.button
-          type="submit"
-          disabled={!isEmailFormValid || isLoading}
-          whileHover={{ scale: isEmailFormValid && !isLoading ? 1.02 : 1 }}
-          whileTap={{ scale: isEmailFormValid && !isLoading ? 0.98 : 1 }}
-          className={`w-full py-3 px-4 rounded-lg font-semibold text-white transition-all duration-200 ${
-            isEmailFormValid && !isLoading
-              ? 'bg-blue-600 hover:bg-blue-700 shadow-lg hover:shadow-xl'
-              : 'bg-gray-300 cursor-not-allowed'
-          }`}
-        >
-          {isLoading ? (
-            <div className="flex items-center justify-center">
-              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-              Processing...
-            </div>
-          ) : (
-            'Continue to Reset Password'
-          )}
-        </motion.button>
-      </form>
-    )
-  }
-
-  // Password Reset Step
   return (
     <form onSubmit={handlePasswordReset} className="space-y-6">
       {/* Back Button */}
       <button
         type="button"
-        onClick={() => setIsResetMode(false)}
+        onClick={onBackToLogin}
         className="flex items-center space-x-2 text-sm text-gray-600 hover:text-gray-800 transition-colors duration-200"
       >
         <ArrowLeftIcon className="h-4 w-4" />
@@ -232,8 +138,32 @@ export default function ForgotPasswordForm({ onSuccess, onBackToLogin }: ForgotP
       {/* Instructions */}
       <div className="text-center">
         <p className="text-sm text-gray-600 mb-4">
-          Reset password for <span className="font-medium text-gray-800">{email}</span>
+          Enter your email and set a new password
         </p>
+      </div>
+
+      {/* Email Field */}
+      <div className="space-y-2">
+        <label htmlFor="reset-email" className="block text-sm font-medium text-gray-700">
+          Email Address
+        </label>
+        <div className="relative">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <EnvelopeIcon className="h-5 w-5 text-gray-400" />
+          </div>
+          <input
+            id="reset-email"
+            name="email"
+            type="email"
+            autoComplete="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-gray-50 focus:bg-white"
+            placeholder="Enter your email"
+            disabled={isLoading}
+          />
+        </div>
       </div>
 
       {/* New Password Field */}

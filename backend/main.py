@@ -107,7 +107,7 @@ async def root():
     }
 
 @app.get("/api/system/status")
-async def get_system_status():
+async def get_system_status(user: Dict[str, Any] = Depends(require_auth)):
     """Get current system status."""
     if not orchestrator:
         raise HTTPException(status_code=503, detail="System not initialized")
@@ -213,7 +213,8 @@ async def validate_roof_design_optimized(
 @app.post("/api/validation/validate-element")
 async def validate_specific_element(
     file: UploadFile = File(...),
-    element_type: str = "sheathing"
+    element_type: str = "sheathing",
+    user: Dict[str, Any] = Depends(require_auth)
 ):
     """
     Validate a specific design element.
@@ -245,7 +246,10 @@ async def validate_specific_element(
         raise HTTPException(status_code=500, detail=f"Element validation failed: {str(e)}")
 
 @app.post("/api/reports/compliance")
-async def generate_compliance_report(validation_results: Dict[str, Any]):
+async def generate_compliance_report(
+    validation_results: Dict[str, Any],
+    user: Dict[str, Any] = Depends(require_auth)
+):
     """
     Generate a professional compliance report from validation results.
     
@@ -266,7 +270,7 @@ async def generate_compliance_report(validation_results: Dict[str, Any]):
         raise HTTPException(status_code=500, detail=f"Report generation failed: {str(e)}")
 
 @app.get("/api/workflow/history")
-async def get_workflow_history():
+async def get_workflow_history(user: Dict[str, Any] = Depends(require_auth)):
     """Get history of validation workflows."""
     if not orchestrator:
         raise HTTPException(status_code=503, detail="System not initialized")
@@ -277,7 +281,7 @@ async def get_workflow_history():
     }
 
 @app.get("/api/workflow/current")
-async def get_current_workflow():
+async def get_current_workflow(user: Dict[str, Any] = Depends(require_auth)):
     """Get status of current workflow."""
     if not orchestrator:
         raise HTTPException(status_code=503, detail="System not initialized")
@@ -286,7 +290,7 @@ async def get_current_workflow():
     return {"current_workflow": current}
 
 @app.delete("/api/workflow/history")
-async def clear_workflow_history():
+async def clear_workflow_history(user: Dict[str, Any] = Depends(require_auth)):
     """Clear workflow history."""
     if not orchestrator:
         raise HTTPException(status_code=503, detail="System not initialized")
@@ -295,7 +299,7 @@ async def clear_workflow_history():
     return {"message": "Workflow history cleared"}
 
 @app.get("/api/agents/test")
-async def test_agents():
+async def test_agents(user: Dict[str, Any] = Depends(require_auth)):
     """Test agent connectivity and functionality."""
     if not orchestrator:
         raise HTTPException(status_code=503, detail="System not initialized")
@@ -315,7 +319,10 @@ async def test_agents():
         raise HTTPException(status_code=500, detail=f"Agent test failed: {str(e)}")
 
 @app.post("/generate-pdf-report")
-async def generate_pdf_report(request_data: Dict[str, Any]):
+async def generate_pdf_report(
+    request_data: Dict[str, Any],
+    user: Dict[str, Any] = Depends(require_auth)
+):
     """
     Generate a professional PDF compliance report from validation results.
     

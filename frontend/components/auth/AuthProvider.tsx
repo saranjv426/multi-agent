@@ -153,9 +153,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const resetPassword = async (email: string, newPassword: string, confirmPassword: string): Promise<{ success: boolean; error?: string }> => {
-    // For now, this is a simplified reset without email verification
-    // In a real app, this would involve email verification
-    
     if (newPassword !== confirmPassword) {
       return { success: false, error: 'Passwords do not match' }
     }
@@ -165,9 +162,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      // For now, we'll simulate a password reset
-      // In real implementation, this would use the actual backend endpoint
-      return { success: true }
+      const response = await fetch(`${API_BASE_URL}/api/auth/reset-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          new_password: newPassword,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (response.ok && data.success) {
+        return { success: true }
+      }
+
+      return { success: false, error: data.error || data.detail || 'Password reset failed' }
     } catch (error) {
       return { success: false, error: 'Password reset failed. Please try again.' }
     }

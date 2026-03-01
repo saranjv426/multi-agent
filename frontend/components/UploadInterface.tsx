@@ -98,7 +98,7 @@ export default function UploadInterface({ onBack }: UploadInterfaceProps) {
       // Validate file type
       const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf']
       if (!allowedTypes.includes(file.type)) {
-        toast.error('Please upload an image (PNG, JPG, JPEG) or CAD file')
+        toast.error('Please upload an image (PNG, JPG, JPEG)')
         return
       }
       
@@ -393,7 +393,7 @@ export default function UploadInterface({ onBack }: UploadInterfaceProps) {
                   )}
                   
                   <div className="mt-4 text-xs text-gray-500">
-                    Supports: PNG, JPG, JPEG, CAD (Max 10MB)
+                    Supports: PNG, JPG, JPEG. Max Size: 10MB
                   </div>
                 </div>
               ) : (

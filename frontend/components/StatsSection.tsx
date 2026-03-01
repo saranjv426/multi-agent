@@ -13,7 +13,7 @@ interface Stat {
 const stats: Stat[] = [
   {
     label: "Accuracy Rate",
-    value: "99.2",
+    value: "> 90",
     suffix: "%",
     description: "Building code compliance detection accuracy"
   },
@@ -25,12 +25,12 @@ const stats: Stat[] = [
   },
   {
     label: "Code Sections",
-    value: "500+",
-    description: "Florida Building Code provisions covered"
+    value: "80",
+    description: "Florida Residential Building Code provisions covered"
   },
   {
-    label: "Projects Validated",
-    value: "1,200+", 
+    label: "DesignsValidated",
+    value: "100+", 
     description: "Successful roof design validations"
   }
 ]
@@ -87,8 +87,8 @@ export default function StatsSection() {
             Trusted by Professionals
           </h2>
           <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            Our validation system has processed thousands of roof designs, 
-            making it easier toensure code compliance.
+            Our validation system has processed several roof designs, 
+            making it easier to ensure code compliance and is robust enough for professional use.
           </p>
         </motion.div>
         
