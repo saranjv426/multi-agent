@@ -4,7 +4,8 @@ Handles SQLAlchemy database sessions and connection pooling
 """
 
 import os
-from sqlalchemy import create_engine
+import re
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import QueuePool
 from typing import Generator
@@ -14,12 +15,31 @@ from .models import Base
 
 logger = logging.getLogger(__name__)
 
+
+_SCHEMA_NAME_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def validate_schema_name(schema_name: str) -> str:
+    """Validate DB schema name to avoid SQL injection and invalid identifiers."""
+    normalized = (schema_name or "").strip()
+    if not normalized:
+        return "public"
+    if not _SCHEMA_NAME_PATTERN.match(normalized):
+        raise ValueError(
+            "DB_SCHEMA must be a valid PostgreSQL identifier "
+            "(letters, numbers, underscore; cannot start with a number)"
+        )
+    return normalized
+
+
 class DatabaseManager:
     """Manages database connections and sessions"""
     
-    def __init__(self, database_url: str):
+    def __init__(self, database_url: str, db_schema: str = "public"):
         """Initialize database manager with connection URL"""
         self.database_url = database_url
+        self.db_schema = validate_schema_name(db_schema)
+        self._is_postgres = self.database_url.startswith("postgresql://")
         self.engine = None
         self.SessionLocal = None
         self._setup_engine()
@@ -27,6 +47,11 @@ class DatabaseManager:
     def _setup_engine(self):
         """Set up SQLAlchemy engine with optimal settings for Railway"""
         try:
+            connect_args = {}
+            if self._is_postgres:
+                # Keep app objects isolated per environment while sharing one DB instance.
+                connect_args["options"] = f"-csearch_path={self.db_schema},public"
+
             # Create engine with connection pooling
             self.engine = create_engine(
                 self.database_url,
@@ -35,6 +60,7 @@ class DatabaseManager:
                 max_overflow=10,
                 pool_timeout=30,
                 pool_recycle=1800,  # Recycle connections every 30 minutes
+                connect_args=connect_args,
                 echo=False  # Set to True for SQL debugging
             )
             
@@ -50,12 +76,20 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Failed to initialize database engine: {e}")
             raise
+
+    def _ensure_schema_exists(self):
+        """Create schema if missing (PostgreSQL only)."""
+        if not self._is_postgres:
+            return
+        with self.engine.begin() as connection:
+            connection.execute(text(f'CREATE SCHEMA IF NOT EXISTS "{self.db_schema}"'))
     
     def create_tables(self):
         """Create all database tables"""
         try:
+            self._ensure_schema_exists()
             Base.metadata.create_all(bind=self.engine)
-            logger.info("Database tables created successfully")
+            logger.info(f"Database tables created successfully in schema: {self.db_schema}")
         except Exception as e:
             logger.error(f"Failed to create database tables: {e}")
             raise
@@ -99,8 +133,9 @@ def get_database_manager() -> DatabaseManager:
         # Railway PostgreSQL URLs sometimes need modification
         if database_url.startswith("postgres://"):
             database_url = database_url.replace("postgres://", "postgresql://", 1)
-        
-        db_manager = DatabaseManager(database_url)
+
+        db_schema = validate_schema_name(os.getenv("DB_SCHEMA", "public"))
+        db_manager = DatabaseManager(database_url, db_schema=db_schema)
         
     return db_manager
 
