@@ -13,7 +13,7 @@ pymupdf==1.24.2
 
 # Additional utilities
 python-dotenv==1.0.0
-typing-extensions==4.8.0
+typing-extensions>=4.11,<5
 
 # PDF Generation
 reportlab==4.0.8
