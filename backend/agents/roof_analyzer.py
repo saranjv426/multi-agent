@@ -15,6 +15,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 from .image_utils import document_bytes_to_image
+from .openai_compat import chat_completions_create_compat
 
 class RoofDesignAnalyzer:
     """
@@ -187,7 +188,8 @@ STRICT RULES:
                 }
             ]
             
-            response = self.client.chat.completions.create(
+            response = chat_completions_create_compat(
+                self.client,
                 model=self.vision_model,
                 max_completion_tokens=self.max_completion_tokens,
                 messages=messages
@@ -268,7 +270,8 @@ Provide factual responses based only on what was extracted from the drawing.
             """
             
             # Call OpenAI API for follow-up
-            response = self.client.chat.completions.create(
+            response = chat_completions_create_compat(
+                self.client,
                 model=self.vision_model,
                 max_completion_tokens=1000,
                 messages=[

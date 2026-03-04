@@ -14,6 +14,7 @@ import io
 import re
 import base64
 from typing import Dict, Any, Optional
+from xml.sax.saxutils import escape
 
 try:
     from agents.image_utils import document_bytes_to_image
@@ -28,6 +29,8 @@ class ComplianceReportGenerator:
     def __init__(self):
         self.styles = getSampleStyleSheet()
         self._setup_custom_styles()
+        # Letter width (8.5in) minus 1in left and right margins configured in generate_report.
+        self.page_content_width = 6.5 * inch
     
     def _to_pascal_case(self, text: str) -> str:
         """Convert text to PascalCase separated by spaces"""
@@ -331,22 +334,22 @@ class ComplianceReportGenerator:
         return binary
     
     def _build_executive_summary(self, validation_data: Dict[str, Any]) -> list:
-        """Build executive summary section with hierarchical structure"""
+        """Build executive summary section with stable formatting for current report schema."""
         story = []
         
-        # Parse the validation report to match UI structure exactly
         validation_report = validation_data.get('validation_report', '')
-        
-        # Process the report line by line like the UI does
         lines = validation_report.split('\n')
-        
-        # Section counter for numbering
+
         section_counter = 1
         
         for line in lines:
             line = line.strip()
             if not line:
                 story.append(Spacer(1, 3))
+                continue
+
+            # Ignore visual separators from model output
+            if re.match(r'^[=\-_]{6,}$', line):
                 continue
                 
             # Clean line of markdown formatting and remove quotes
@@ -363,7 +366,14 @@ class ComplianceReportGenerator:
             # Clean up any double spaces
             clean_line = re.sub(r'\s+', ' ', clean_line).strip()
             
-            # Check for main section headers - convert to PascalCase and number them
+            # Render step headers as numbered main sections
+            if re.match(r'^STEP\s+\d+:\s*', clean_line, re.IGNORECASE):
+                section_counter += 1
+                step_title = self._to_pascal_case(clean_line)
+                story.append(Paragraph(escape(f"{section_counter}. {step_title}"), self.styles['SectionHeader']))
+                continue
+
+            # Existing main section header patterns
             if re.match(r'^###\s*(.+)$', line) or \
                re.match(r'^\*\*(VALIDATION CHECKLIST|SUMMARY):\*\*\s*$', line) or \
                re.match(r'^(TECHNICAL SPECIFICATIONS|COMPLIANCE ASSESSMENT|CRITICAL FINDINGS|SUMMARY|OVERALL STATUS)', clean_line):
@@ -378,28 +388,89 @@ class ComplianceReportGenerator:
                 # Number the section
                 section_counter += 1
                 numbered_text = f"{section_counter}. {pascal_text}"
-                
-                story.append(Paragraph(numbered_text, self.styles['SectionHeader']))
+
+                story.append(Paragraph(escape(numbered_text), self.styles['SectionHeader']))
+                continue
+
+            # SECTION: [..] lines should appear as subsection headers
+            if re.match(r'^SECTION:\s*', clean_line, re.IGNORECASE):
+                section_name = clean_line.split(':', 1)[1].strip()
+                section_name = section_name.strip('[]').strip() or "Unlabeled Section"
+                sub_text = f"<font size=16><b>•</b></font> Section: {escape(section_name)}"
+                story.append(Paragraph(sub_text, self.styles['SubHeader']))
                 continue
                 
             # Check for subsection headers - make them bulleted and convert to PascalCase with colon
             if re.match(r'^\*\*([^*]+):\*\*\s*$', line) or \
-               re.match(r'^(DIMENSIONS FOUND|MATERIALS IDENTIFIED|SLOPE/PITCH DETAILS|STRUCTURAL ELEMENTS|CRITICAL FINDINGS|REQUIRED CORRECTIONS):$', clean_line):
+               re.match(r'^(DIMENSIONS FOUND|MATERIALS IDENTIFIED|SLOPE/PITCH DETAILS|STRUCTURAL ELEMENTS|CRITICAL FINDINGS|REQUIRED CORRECTIONS):$', clean_line) or \
+               re.match(r'^[A-Z_]+_COMPLIANCE:$', clean_line):
                 
                 display_text = re.sub(r'^\*\*(.+):\*\*\s*$', r'\1', line)  # Remove markdown
                 display_text = display_text.rstrip(':')  # Remove existing colon
                 
                 # Convert to PascalCase and add bullet point with colon (larger, more noticeable bullet)
                 pascal_text = self._to_pascal_case(display_text)
-                bulleted_text = f"<font size=16><b>•</b></font> {pascal_text}:"
+                bulleted_text = f"<font size=16><b>•</b></font> {escape(pascal_text)}:"
                 story.append(Paragraph(bulleted_text, self.styles['SubHeader']))
+                continue
+
+            # OVERALL_COMPLIANCE_STATUS should be highlighted like other status rows
+            overall_match = re.match(
+                r'^OVERALL_COMPLIANCE_STATUS:\s*\[(COMPLIANT|NON-COMPLIANT|REQUIRES REVIEW|REQUIRES FURTHER REVIEW|MISSING)\]$',
+                clean_line,
+                re.IGNORECASE
+            )
+            if overall_match:
+                status = overall_match.group(1).upper()
+                style_name, bg_color, border_color = self._status_style(status)
+                table = Table(
+                    [[Paragraph(escape(clean_line), self.styles[style_name])]],
+                    colWidths=[self.page_content_width]
+                )
+                table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, -1), bg_color),
+                    ('BOX', (0, 0), (-1, -1), 1.5, border_color),
+                    ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                    ('LEFTPADDING', (0, 0), (-1, -1), 12),
+                    ('RIGHTPADDING', (0, 0), (-1, -1), 12),
+                    ('TOPPADDING', (0, 0), (-1, -1), 10),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
+                    ('ROUNDEDCORNERS', [3, 3, 3, 3]),
+                ]))
+                story.append(table)
+                continue
+
+            # Per-block status lines should be highlighted consistently
+            status_line_match = re.match(
+                r'^Status:\s*\[(COMPLIANT|NON-COMPLIANT|REQUIRES REVIEW|REQUIRES FURTHER REVIEW|MISSING)\]$',
+                clean_line,
+                re.IGNORECASE
+            )
+            if status_line_match:
+                status = status_line_match.group(1).upper()
+                style_name, bg_color, border_color = self._status_style(status)
+                table = Table(
+                    [[Paragraph(escape(clean_line), self.styles[style_name])]],
+                    colWidths=[self.page_content_width]
+                )
+                table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, -1), bg_color),
+                    ('BOX', (0, 0), (-1, -1), 1.5, border_color),
+                    ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                    ('LEFTPADDING', (0, 0), (-1, -1), 12),
+                    ('RIGHTPADDING', (0, 0), (-1, -1), 12),
+                    ('TOPPADDING', (0, 0), (-1, -1), 10),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
+                    ('ROUNDEDCORNERS', [3, 3, 3, 3]),
+                ]))
+                story.append(table)
                 continue
                 
             # Check for content that should be indented (starts with -)
             if clean_line.startswith('-') and not re.match(r'^(Sheathing|Rafter Spacing/Spans|Fastening/Connections|Underlayment|Insulation|Wind Resistance):', clean_line):
                 # Remove the dash and indent the content with small, subtle hollow circle bullet
                 indented_text = clean_line[1:].strip()
-                story.append(Paragraph(f"<font size=11>-</font> {indented_text}", self.styles['ContentBullet']))
+                story.append(Paragraph(f"<font size=11>-</font> {escape(indented_text)}", self.styles['ContentBullet']))
                 continue
                 
             # Check for validation checklist items with color coding
@@ -430,8 +501,10 @@ class ComplianceReportGenerator:
                     border_color = colors.black
                 
                 # Create a table with filled background and rounded appearance
-                validation_table = Table([[Paragraph(clean_line, self.styles[style_name])]], 
-                                       colWidths=[7.5*inch])
+                validation_table = Table(
+                    [[Paragraph(escape(clean_line), self.styles[style_name])]],
+                    colWidths=[self.page_content_width]
+                )
                 validation_table.setStyle(TableStyle([
                     ('BACKGROUND', (0, 0), (-1, -1), bg_color),
                     ('BOX', (0, 0), (-1, -1), 1.5, border_color),
@@ -448,9 +521,19 @@ class ComplianceReportGenerator:
                 
             # Regular content
             if clean_line:
-                story.append(Paragraph(clean_line, self.styles['Content']))
+                story.append(Paragraph(escape(clean_line), self.styles['Content']))
                 
         return story
+
+    def _status_style(self, status: str):
+        """Map a compliance status to style/colors used in highlighted rows."""
+        if status == 'COMPLIANT':
+            return 'Compliant', colors.Color(0.9, 0.98, 0.9), colors.Color(0.2, 0.7, 0.2)
+        if status == 'NON-COMPLIANT':
+            return 'NonCompliant', colors.Color(0.98, 0.9, 0.9), colors.Color(0.8, 0.2, 0.2)
+        if status == 'REQUIRES FURTHER REVIEW' or status == 'REQUIRES REVIEW':
+            return 'Review', colors.Color(0.98, 0.96, 0.87), colors.Color(0.8, 0.6, 0.133)
+        return 'Missing', colors.Color(0.95, 0.95, 0.95), colors.Color(0.5, 0.5, 0.5)
     
     def _build_design_analysis(self, validation_data: Dict[str, Any]) -> list:
         """Build design analysis section - this is now integrated into the main report parsing"""
