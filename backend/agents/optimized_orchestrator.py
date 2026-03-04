@@ -11,6 +11,11 @@ import base64
 from openai import OpenAI
 
 from .image_utils import document_bytes_to_image
+from .openai_compat import chat_completions_create_compat
+from .validation_report_formatter import (
+    normalize_validation_report,
+    apply_section_label_from_extraction,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -200,14 +205,23 @@ VALIDATION_METADATA:
 STRICT RULES:
 - Quote exact text from drawing
 - Cite specific FBC-R section numbers
+- Use roof-code chapters only for roof checks:
+  - Framing: R802.*
+  - Sheathing: R803.*
+  - Covering/underlayment: R905.* (and R903.* if needed)
+  - Wind: R301.* (and related roof load-path checks)
+- Do NOT cite floor-framing sections (e.g., R502.*) for roof compliance.
 - Mark "not shown" for missing info - never guess
 - Mark "REQUIRES REVIEW" for partial/ambiguous data
 - Prioritize life safety (connections, uplift, wind)
 - Focus on ROOF elements primarily
+- Output ONLY the requested format with exact section labels. Do not output alternative formats
+  like "Validation Checklist" or renumbered headings.
 """
 
             # Single API call for both analysis and validation
-            response = self.client.chat.completions.create(
+            response = chat_completions_create_compat(
+                self.client,
                 model=self.model,
                 max_completion_tokens=self.max_completion_tokens,
                 messages=[
@@ -259,6 +273,8 @@ STRICT RULES:
                 logger.warning(f"Response was truncated due to length limit. Consider increasing max_completion_tokens.")
             
             analysis_text, validation_text = self._split_sections(analysis_result)
+            validation_text = normalize_validation_report(validation_text)
+            validation_text = apply_section_label_from_extraction(validation_text, analysis_text)
             
             return {
                 "success": True,

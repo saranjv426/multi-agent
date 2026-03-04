@@ -8,6 +8,7 @@ from typing import Dict, Optional, Any
 import re
 import logging
 import time
+from .openai_compat import chat_completions_create_compat
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -306,7 +307,8 @@ CORRECTIONS (if NON-COMPLIANT or REQUIRES FURTHER REVIEW):
 
             """
             
-            response = self.client.chat.completions.create(
+            response = chat_completions_create_compat(
+                self.client,
                 model=self.validation_model,
                 max_completion_tokens=2000,
                 messages=[
@@ -382,7 +384,8 @@ Generate a formal BUILDING CODE COMPLIANCE REPORT with:
 Format as a professional document suitable for official submission.
             """
             
-            response = self.client.chat.completions.create(
+            response = chat_completions_create_compat(
+                self.client,
                 model=self.summary_model,
                 max_completion_tokens=3000,
                 messages=[
