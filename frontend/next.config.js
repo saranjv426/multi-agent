@@ -6,9 +6,6 @@ const nextConfig = {
     domains: ['localhost'],
     unoptimized: true, // Better for static deployment
   },
-  env: {
-    NEXT_PUBLIC_BACKEND_URL: process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000',
-  },
   // Optimized for cloud deployment
   output: 'standalone',
   experimental: {
