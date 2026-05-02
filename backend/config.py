@@ -63,7 +63,12 @@ def get_config() -> Config:
     """
     
     # Required configuration
-    openai_api_key = os.getenv("OPENAI_API_KEY") or os.getenv("NAVIGATOR_API_KEY")
+    openai_api_key = (
+        os.getenv("OPENAI_API_KEY")
+        or os.getenv("NAVIGATOR_API_KEY")
+        or os.getenv("MISTRAL_API_KEY")
+        or os.getenv("GPT52_API_KEY")
+    )
     if not openai_api_key:
         raise ValueError(
             "OPENAI_API_KEY environment variable is required. "
@@ -89,7 +94,12 @@ def get_config() -> Config:
     # Optional configuration with defaults
     config = Config(
         openai_api_key=openai_api_key,
-        openai_api_base=os.getenv("OPENAI_API_BASE", "https://api.openai.com/v1"),
+        openai_api_base=(
+            os.getenv("OPENAI_API_BASE")
+            or os.getenv("NAVIGATOR_BASE_URL")
+            or os.getenv("MISTRAL_API_BASE")
+            or "https://api.openai.com/v1"
+        ),
         openai_main_model=os.getenv("OPENAI_MAIN_MODEL", "gpt-5.1"),
         openai_summary_model=os.getenv("OPENAI_SUMMARY_MODEL", "gpt-5-mini"),
         database_url=database_url,

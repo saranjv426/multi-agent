@@ -108,7 +108,7 @@ class RoofValidationOrchestrator:
             # Step 1: Agent1 - Image Analysis
             self.current_workflow["current_step"] = "agent1_analysis"
             
-            print(f"Step 1: Agent1 analyzing roof design image...")
+            logger.info("Step 1: analyzing roof design image")
             agent1_result = self.agent1.analyze_roof_design(image_file, filename)
             
             if not agent1_result.get('success'):
@@ -120,19 +120,19 @@ class RoofValidationOrchestrator:
             # Step 2: Parse design specifications (optional, for structured data)
             self.current_workflow["current_step"] = "parsing_specifications"
             
-            print(f"Step 2: Parsing design specifications...")
+            logger.info("Step 2: parsing design specifications")
             try:
                 design_specs = self.design_parser.parse_agent1_output(agent1_output)
                 design_summary = self.design_parser.get_design_summary(design_specs)
             except Exception as e:
-                print(f"Warning: Could not parse design specs: {e}")
+                logger.warning("Could not parse design specs: %s", e)
                 design_specs = []
                 design_summary = {}
             
             # Step 3: Agent2 - Building Code Validation
             self.current_workflow["current_step"] = "agent2_validation"
             
-            print(f"Step 3: Agent2 validating against building codes...")
+            logger.info("Step 3: validating against building codes")
             agent2_result = self.agent2.validate_roof_design(agent1_output, validation_options)
             
             if not agent2_result.get('success'):
@@ -145,7 +145,7 @@ class RoofValidationOrchestrator:
             # Step 4: Generate summary and compliance report
             self.current_workflow["current_step"] = "generating_report"
             
-            print(f"Step 4: Generating compliance report...")
+            logger.info("Step 4: generating compliance report")
             validation_summary = self.agent2.get_validation_summary(parsed_report)
             
             # Calculate total processing time
@@ -194,7 +194,7 @@ class RoofValidationOrchestrator:
             # Add to history
             self.workflow_history.append(self.current_workflow.copy())
             
-            print(f"Validation completed successfully in {processing_time:.2f} seconds")
+            logger.info("Validation completed successfully in %.2f seconds", processing_time)
             
             return workflow_result
             
@@ -217,7 +217,7 @@ class RoofValidationOrchestrator:
             # Add to history
             self.workflow_history.append(self.current_workflow.copy())
             
-            print(f"Validation failed: {str(e)}")
+            logger.error("Validation failed: %s", str(e))
             
             return error_result
     

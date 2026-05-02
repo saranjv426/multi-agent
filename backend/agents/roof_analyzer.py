@@ -5,6 +5,7 @@ Extracts structural information from roof design drawings using GPT-4o Vision AP
 
 import base64
 import logging
+import os
 import time
 from typing import Dict, Optional, Any
 
@@ -36,7 +37,7 @@ class RoofDesignAnalyzer:
         
         # Configuration
         self.vision_model = vision_model
-        self.max_completion_tokens = 4500  # allow larger extractions with lower latency
+        self.max_completion_tokens = int(os.getenv("MAX_COMPLETION_TOKENS", "4500"))
         self.temperature = 0.1  # low temperature for consistent technical analysis
         
     def encode_image(self, image_file) -> Optional[str]:
@@ -121,7 +122,7 @@ SECTION_1:
     Installation_Notes: [manufacturer requirements, FBC references, or "none"]
   
   ROOF_SLOPE:
-    Pitch: [e.g., "3:12", "5:12", "12/3", or "not shown"]
+    Pitch: [exact visible pitch callout, e.g., "3/12", "3:12", "5:12", or "not shown"]
     Degrees: [if shown in degrees, or "not shown"]
   
   ROOF_TO_WALL_CONNECTION:
@@ -164,6 +165,8 @@ CRITICAL_SPECIFICATIONS:
 
 STRICT RULES:
 - Quote text EXACTLY as it appears (preserve case, punctuation, units)
+- Inspect roof-line annotations, slope triangles, and rise/run markers before writing "not shown"
+- If a pitch ratio like 3/12 or 3:12 is visible anywhere, copy it exactly into ROOF_SLOPE.Pitch
 - Mark "not shown" for any missing information - never guess or assume
 - If text is illegible, note "text present but illegible"
 - Include ALL visible dimensions, elevations, and measurements
@@ -182,7 +185,7 @@ STRICT RULES:
                         },
                         {
                             "type": "input_image",
-                            "image_url": f"data:image/jpeg;base64,{base64_image}"
+                            "image_url": f"data:image/png;base64,{base64_image}"
                         }
                     ]
                 }
@@ -273,7 +276,7 @@ Provide factual responses based only on what was extracted from the drawing.
             response = chat_completions_create_compat(
                 self.client,
                 model=self.vision_model,
-                max_completion_tokens=1000,
+                max_completion_tokens=self.max_completion_tokens,
                 messages=[
                     {
                         "role": "user",

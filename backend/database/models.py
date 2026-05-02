@@ -1,10 +1,9 @@
 """
-Database Models for Railway PostgreSQL
-SQLAlchemy models for user authentication
+Database models for user authentication.
+Compatible with both PostgreSQL and SQLite for local development.
 """
 
-from sqlalchemy import Column, String, DateTime, Boolean, Text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Boolean, Column, DateTime, String, Uuid
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.sql import func
 import uuid
@@ -15,7 +14,7 @@ class User(Base):
     """User model for authentication"""
     __tablename__ = "users"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     email = Column(String(255), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
@@ -29,8 +28,8 @@ class PasswordResetToken(Base):
     """Password reset tokens for secure password recovery"""
     __tablename__ = "password_reset_tokens"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(Uuid(as_uuid=True), nullable=False, index=True)
     token = Column(String(255), unique=True, nullable=False, index=True)
     expires_at = Column(DateTime(timezone=True), nullable=False)
     used = Column(Boolean, default=False, nullable=False)

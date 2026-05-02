@@ -22,6 +22,13 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
 
+const getFriendlyNetworkError = (error: unknown) => {
+  if (error instanceof Error && error.name === 'TypeError') {
+    return `Cannot reach the backend at ${API_BASE_URL}. Make sure the API server is running.`
+  }
+  return 'Network error. Please try again.'
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -120,7 +127,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { success: false, error: data.error || data.detail || 'Login failed' }
       }
     } catch (error) {
-      return { success: false, error: 'Network error. Please try again.' }
+      return { success: false, error: getFriendlyNetworkError(error) }
     }
   }
 
@@ -144,7 +151,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { success: false, error: data.error || data.detail || 'Signup failed' }
       }
     } catch (error) {
-      return { success: false, error: 'Network error. Please try again.' }
+      return { success: false, error: getFriendlyNetworkError(error) }
     }
   }
 

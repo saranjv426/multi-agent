@@ -4,7 +4,7 @@ Creates professional compliance reports from validation results
 """
 
 from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, PageBreak
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.lib import colors
@@ -13,7 +13,7 @@ from datetime import datetime
 import io
 import re
 import base64
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from xml.sax.saxutils import escape
 
 try:
@@ -197,13 +197,14 @@ class ComplianceReportGenerator:
         
         # Header
         story.extend(self._build_header(project_info))
-        
-        # Design section with image (if provided)
-        if image_data:
-            story.extend(self._build_design_section(image_data))
-        
-        # Main content (combines all sections like UI preview)
-        story.extend(self._build_executive_summary(validation_data))
+
+        drawing_results = self._extract_grouped_results(validation_data)
+        if drawing_results:
+            story.extend(self._build_grouped_report(validation_data, drawing_results))
+        else:
+            if image_data:
+                story.extend(self._build_design_section(image_data))
+            story.extend(self._build_executive_summary(validation_data))
         
         # Footer
         story.extend(self._build_footer(validation_data))
@@ -216,6 +217,61 @@ class ComplianceReportGenerator:
         buffer.close()
         
         return pdf_bytes
+
+    def _extract_grouped_results(self, validation_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+        results = validation_data.get("results")
+        if not isinstance(results, list):
+            return []
+        grouped = [
+            result for result in results
+            if isinstance(result, dict) and (
+                result.get("drawing_label")
+                or result.get("drawing_index")
+                or result.get("source_page")
+                or result.get("validation_report")
+                or result.get("error")
+            )
+        ]
+        return grouped
+
+    def _build_grouped_report(self, validation_data: Dict[str, Any], drawing_results: List[Dict[str, Any]]) -> list:
+        story = []
+        source_name = validation_data.get("source_filename") or validation_data.get("filename") or "Uploaded Document"
+        total = len(drawing_results)
+        successful = len([result for result in drawing_results if result.get("success")])
+        raw_total = validation_data.get("raw_total_drawings") or validation_data.get("filtered_from_total_drawings") or total
+
+        story.append(Paragraph("1. Document Summary", self.styles['SectionHeader']))
+        story.append(Paragraph(escape(f"Source File: {source_name}"), self.styles['Content']))
+        story.append(Paragraph(escape(f"Wall Sections Analyzed: {total}"), self.styles['Content']))
+        if raw_total != total:
+            story.append(Paragraph(escape(f"Panels Detected Before Filtering: {raw_total}"), self.styles['Content']))
+        story.append(Paragraph(escape(f"Successful Validations: {successful}"), self.styles['Content']))
+        if total != successful:
+            story.append(Paragraph(escape(f"Needs Review or Failed: {total - successful}"), self.styles['Content']))
+        story.append(Spacer(1, 8))
+
+        for index, result in enumerate(drawing_results, start=1):
+            label = result.get("drawing_label") or result.get("filename") or f"Drawing {index}"
+            page = result.get("source_page")
+            drawing_header = f"{index + 1}. {label}"
+            if page:
+                drawing_header += f" (Page {page})"
+            story.append(Paragraph(escape(drawing_header), self.styles['SectionHeader']))
+
+            image_data = result.get("report_image_data")
+            if image_data:
+                story.extend(self._build_design_section(image_data, include_header=False))
+
+            if result.get("validation_report"):
+                story.extend(self._build_executive_summary(result))
+            else:
+                story.extend(self._build_unavailable_result(result))
+
+            if index < total:
+                story.append(PageBreak())
+
+        return story
     
     def _build_header(self, project_info: Optional[Dict] = None) -> list:
         """Build header section with table (no report ID)"""
@@ -251,12 +307,12 @@ class ComplianceReportGenerator:
         
         return story
     
-    def _build_design_section(self, image_data: str) -> list:
+    def _build_design_section(self, image_data: str, include_header: bool = True) -> list:
         """Build design section with uploaded image"""
         story = []
         
-        # Add section header following the same pattern as other sections
-        story.append(Paragraph("1. Design", self.styles['SectionHeader']))
+        if include_header:
+            story.append(Paragraph("1. Design", self.styles['SectionHeader']))
         
         try:
             image_bytes = self._decode_image_data(image_data)
@@ -304,6 +360,29 @@ class ComplianceReportGenerator:
             story.append(Paragraph("Image could not be processed for display.", self.styles['Content']))
             story.append(Spacer(1, 12))
         
+        return story
+
+    def _build_unavailable_result(self, validation_data: Dict[str, Any]) -> list:
+        story = []
+        error_text = validation_data.get("error") or "Validation output was not available for this drawing."
+
+        table = Table(
+            [[Paragraph("Status: FAILED", self.styles['NonCompliant'])]],
+            colWidths=[self.page_content_width]
+        )
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), colors.Color(1, 0.92, 0.92)),
+            ('BOX', (0, 0), (-1, -1), 1.5, colors.Color(0.8, 0.3, 0.3)),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 12),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 12),
+            ('TOPPADDING', (0, 0), (-1, -1), 10),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
+        ]))
+        story.append(table)
+        story.append(Spacer(1, 8))
+        story.append(Paragraph(escape(error_text), self.styles['Content']))
+        story.append(Spacer(1, 12))
         return story
     
     def _decode_image_data(self, image_data: Optional[str]) -> Optional[bytes]:
@@ -365,6 +444,14 @@ class ComplianceReportGenerator:
             clean_line = clean_line.replace('\\"', '').replace("\\'", '')
             # Clean up any double spaces
             clean_line = re.sub(r'\s+', ' ', clean_line).strip()
+
+            # Hide template leftovers and placeholder citations from the final PDF.
+            if clean_line == "[Repeat for each section]":
+                continue
+            if "Exact citation verification needed" in clean_line:
+                continue
+            if clean_line.startswith("Analyzer:") and "licensed structural engineer" in clean_line.lower():
+                clean_line = "Analyzer: [AI roof compliance review system]"
             
             # Render step headers as numbered main sections
             if re.match(r'^STEP\s+\d+:\s*', clean_line, re.IGNORECASE):

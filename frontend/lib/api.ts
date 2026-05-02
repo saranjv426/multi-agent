@@ -3,6 +3,7 @@
  */
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
+const DEFAULT_TIMEOUT_MS = 600000
 
 interface ApiResponse<T = any> {
   data?: T
@@ -15,7 +16,7 @@ interface ApiResponse<T = any> {
  */
 export async function apiRequest<T = any>(
   endpoint: string,
-  options: RequestInit & { responseType?: 'json' | 'text' | 'blob' } = {}
+  options: RequestInit & { responseType?: 'json' | 'text' | 'blob', timeoutMs?: number } = {}
 ): Promise<ApiResponse<T>> {
   const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
 
@@ -31,8 +32,13 @@ export async function apiRequest<T = any>(
     (defaultHeaders as any)['Authorization'] = `Bearer ${token}`
   }
 
+  const controller = new AbortController()
+  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+
   const config: RequestInit = {
     ...options,
+    signal: controller.signal,
     headers: {
       ...defaultHeaders,
       ...(options.headers || {}),
@@ -84,10 +90,18 @@ export async function apiRequest<T = any>(
     
   } catch (error) {
     console.error('API request failed:', error)
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      return {
+        error: `Request timed out after ${Math.round(timeoutMs / 1000)}s`,
+        status: 0
+      }
+    }
     return {
       error: 'Network error. Please check your connection.',
       status: 0
     }
+  } finally {
+    clearTimeout(timeoutId)
   }
 }
 
@@ -95,10 +109,10 @@ export async function apiRequest<T = any>(
  * Convenience methods for common HTTP methods
  */
 export const api = {
-  get: <T = any>(endpoint: string, options?: RequestInit & { responseType?: 'json' | 'text' | 'blob' }) =>
+  get: <T = any>(endpoint: string, options?: RequestInit & { responseType?: 'json' | 'text' | 'blob', timeoutMs?: number }) =>
     apiRequest<T>(endpoint, { ...(options || {}), method: 'GET' }),
     
-  post: <T = any>(endpoint: string, body?: any, options?: RequestInit & { responseType?: 'json' | 'text' | 'blob' }) =>
+  post: <T = any>(endpoint: string, body?: any, options?: RequestInit & { responseType?: 'json' | 'text' | 'blob', timeoutMs?: number }) =>
     apiRequest<T>(endpoint, {
       ...(options || {}),
       method: 'POST',
@@ -106,13 +120,13 @@ export const api = {
       body: body instanceof FormData ? body : (body !== undefined ? JSON.stringify(body) : undefined),
     }),
     
-  put: <T = any>(endpoint: string, body?: any, options?: RequestInit & { responseType?: 'json' | 'text' | 'blob' }) =>
+  put: <T = any>(endpoint: string, body?: any, options?: RequestInit & { responseType?: 'json' | 'text' | 'blob', timeoutMs?: number }) =>
     apiRequest<T>(endpoint, {
       ...(options || {}),
       method: 'PUT',
       body: body instanceof FormData ? body : (body !== undefined ? JSON.stringify(body) : undefined),
     }),
     
-  delete: <T = any>(endpoint: string, options?: RequestInit & { responseType?: 'json' | 'text' | 'blob' }) =>
+  delete: <T = any>(endpoint: string, options?: RequestInit & { responseType?: 'json' | 'text' | 'blob', timeoutMs?: number }) =>
     apiRequest<T>(endpoint, { ...(options || {}), method: 'DELETE' }),
 }

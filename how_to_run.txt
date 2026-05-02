@@ -1,205 +1,205 @@
-ROOF DESIGN VALIDATION SYSTEM - INSTALLATION & SETUP GUIDE
+ROOF DESIGN VALIDATION SYSTEM - HOW TO RUN
 
-STEP 1: INSTALL PYTHON & CONDA
+Project summary
+===============
 
-1.1 Download and Install Miniconda (recommended) or Anaconda:
-   - Visit: https://docs.conda.io/en/latest/miniconda.html
-   - Download the installer for your operating system
-   - Run the installer and follow the setup wizard
-   - Make sure to check "Add conda to PATH" during installation
+This project is a full-stack roof design validation tool.
 
-1.2 Verify Installation:
-   Open a terminal/command prompt and type:
-   
-   conda --version
-   
-   You should see a version number (e.g., conda 23.x.x)
+Backend:
+- FastAPI API server.
+- Uploads image/PDF roof drawings.
+- Extracts drawing panels from PDFs and images.
+- Runs AI-assisted roof compliance validation.
+- Supports authentication, password reset flow, database persistence, and PDF report generation.
 
-STEP 2: INSTALL NODE.JS
+Frontend:
+- Next.js web app.
+- Supports signup/login, upload workflow, model selection, validation results, and report download.
 
-2.1 Download Node.js:
-   - Visit: https://nodejs.org/
-   - Download the LTS version (recommended)
-   - Run the installer and follow the setup wizard
 
-2.2 Verify Installation:
-   Open a terminal/command prompt and type:
-   
-   node --version
-   npm --version
-   
-   You should see version numbers for both
+Prerequisites
+=============
 
-STEP 3: DOWNLOAD THE APPLICATION
-===============================
+1. Install Conda or Miniconda.
+2. Install Node.js LTS and npm.
+3. Have an API key for the AI provider you plan to use.
 
-3.1 Extract the Application:
-   - Extract the MAS folder to your desired location
-   - Example: C:\Users\YourName\Desktop\MAS (Windows)
-   - Example: /Users/YourName/Desktop/MAS (macOS)
-   - Example: /home/yourname/Desktop/MAS (Linux)
+Recommended local Python environment:
 
-3.2 Navigate to the Application:
-   Open terminal/command prompt and navigate to the MAS folder:
-   
-   cd /path/to/MAS
-   
-   (Replace /path/to/MAS with your actual path)
+  conda create -n agent_env python=3.11 -y
 
-STEP 4: SET UP CONDA ENVIRONMENT
+If this machine already has the environment:
 
-4.1 Create Conda Environment:
-   In the terminal, run:
-   
-   conda create -n agent_env python=3.9 -y
-   
-4.2 Activate Environment:
-   
-   conda activate agent_env
-   
-   Note: You'll need to run this command every time you open a new terminal
+  conda activate agent_env
 
-4.3 Verify Environment:
-   You should see (agent_env) at the beginning of your terminal prompt
+Backend setup
+=============
 
-STEP 5: INSTALL BACKEND DEPENDENCIES
+From the project root:
 
-5.1 Navigate to Backend Directory:
-   
-   cd backend
-   
-5.2 Install Python Dependencies:
-   
-   conda activate agent_env
-   conda install --file requirements.txt -c conda-forge
-   
-   This will install all required Python packages including FastAPI, OpenAI, etc.
+  cd backend
+  conda activate agent_env
+  pip install -r requirements.txt
+  cp env.example .env
 
-STEP 6: CONFIGURE BACKEND ENVIRONMENT
+Edit backend/.env and set the important values:
 
-6.1 Create Environment File:
-   In the backend directory, create a file named ".env" with the following content:
-   (Replace YOUR_OPENAI_API_KEY_HERE with your actual API key)
-   
-   OPENAI_API_KEY=YOUR_OPENAI_API_KEY_HERE
-   OPENAI_API_BASE=https://api.openai.com/v1
-   OPENAI_MAIN_MODEL=gpt-5
-   OPENAI_SUMMARY_MODEL=gpt-5-mini
-   HOST=127.0.0.1
-   PORT=8000
-   DEBUG=true
-   ENVIRONMENT=development
-   ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
-   TRACK_API_COSTS=true
-   LOG_LEVEL=INFO
+  OPENAI_API_KEY=your_openai_api_key_here
+  OPENAI_API_BASE=https://api.openai.com/v1
+  OPENAI_MAIN_MODEL=gpt-5
+  OPENAI_SUMMARY_MODEL=gpt-5-mini
+  JWT_SECRET_KEY=replace_with_a_long_random_secret
+  HOST=127.0.0.1
+  PORT=8000
+  DEBUG=true
+  ENVIRONMENT=development
+  ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+  LOCAL_DATABASE_URL=sqlite:///./local_dev.db
+  ENABLE_SQLITE_FALLBACK=true
+  FRONTEND_URL=http://localhost:3000
 
-6.2 Save the File:
-   - On Windows: Save as ".env" (with quotes to include the dot)
-   - On macOS/Linux: Save as .env
+Optional provider routes are also available in backend/env.example:
 
-STEP 7: SET UP FRONTEND
+  MISTRAL_API_KEY
+  MISTRAL_API_BASE
+  MISTRAL_MAIN_MODEL
+  GPT52_API_KEY
+  GPT52_API_BASE
+  GPT52_MAIN_MODEL
 
-7.1 Open New Terminal:
-   Open a second terminal/command prompt window
+Database note
+=============
 
-7.2 Navigate to Frontend Directory:
-   
-   cd /path/to/MAS/frontend
-   
-   (Replace /path/to/MAS with your actual path)
+For production, set DATABASE_URL to PostgreSQL.
 
-7.3 Install Frontend Dependencies:
-   
-   npm install
-   
-   This will download and install all required JavaScript packages
+For local development, if PostgreSQL is not available, the backend can fall back to:
 
-7.4 Create Frontend Environment File:
-   In the frontend directory, create a file named ".env.local" with:
-   
-   NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
+  backend/local_dev.db
 
-STEP 8: START THE APPLICATION
+This is controlled by:
 
-You need to run both backend and frontend simultaneously.
+  LOCAL_DATABASE_URL=sqlite:///./local_dev.db
+  ENABLE_SQLITE_FALLBACK=true
 
-8.1 Start Backend Server:
-   In the first terminal (make sure you're in the backend directory and conda environment is activated):
-   
-   conda activate agent_env
-   cd backend
-   python start.py
-   
-   You should see:
-   - "Server running on http://127.0.0.1:8000"
-   - "API documentation available at http://127.0.0.1:8000/docs"
-
-8.2 Start Frontend Server:
-   In the second terminal (make sure you're in the frontend directory):
-   
-   cd frontend
-   node start.js
-   
-   You should see:
-   - "Frontend will be available at: http://localhost:3000"
-
-STEP 9: ACCESS THE APPLICATION
-
-9.1 Open Your Web Browser:
-   Go to: http://localhost:3000
-   
-   You should see the Roof Design Validation System homepage
-
-9.2 Test the System:
-   - Click "Upload Design" or similar button
-   - Upload a roof design image (PNG, JPG, or PDF)
-   - Wait for the AI analysis to complete
-   - Download the compliance report
-
-TROUBLESHOOTING
+Frontend setup
 ==============
 
-Problem: "conda: command not found"
-Solution: Restart your terminal after installing conda, or manually add conda to PATH
+Open a second terminal from the project root:
 
-Problem: "python: command not found" 
-Solution: Use "python3" instead of "python", or make sure conda environment is activated
+  cd frontend
+  npm install
 
-Problem: "npm: command not found"
-Solution: Restart terminal after installing Node.js, or reinstall Node.js
+Create frontend/.env.local:
 
-Problem: Backend fails to start with "OpenAI API key" error
-Solution: Double-check your .env file has the correct API key without quotes
+  NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
 
-Problem: Frontend can't connect to backend
-Solution: Make sure backend is running first, check if ports 3000 and 8000 are available
+Run the project
+===============
 
-Problem: "Permission denied" errors
-Solution: Run terminal as administrator (Windows) or use sudo (macOS/Linux)
+You need two terminals.
 
+Terminal 1 - backend:
 
-STOPPING THE APPLICATION
-========================
+  conda activate agent_env
+  cd backend
+  python start.py
 
-To stop the application:
-1. In both terminal windows, press Ctrl+C
-2. Close the terminal windows
-3. Close your web browser
+Backend should be available at:
 
-DAILY USAGE
+  http://localhost:8000
+
+API docs should be available at:
+
+  http://localhost:8000/docs
+
+Terminal 2 - frontend:
+
+  cd frontend
+  NEXT_PUBLIC_BACKEND_URL=http://localhost:8000 npm run dev
+
+Frontend should be available at:
+
+  http://localhost:3000
+
+Daily quick start
+=================
+
+Terminal 1:
+
+  conda activate agent_env
+  cd backend
+  python start.py
+
+Terminal 2:
+
+  cd frontend
+  NEXT_PUBLIC_BACKEND_URL=http://localhost:8000 npm run dev
+
+Then open:
+
+  http://localhost:3000
+
+Testing
+=======
+
+Run backend tests:
+
+  cd backend
+  conda run -n agent_env pytest
+
+Build frontend:
+
+  cd frontend
+  npm run build
+
+Useful URLs
 ===========
 
-After initial setup, to use the system daily:
+Frontend:
 
-1. Open terminal and activate environment:
-   conda activate agent_env
+  http://localhost:3000
 
-2. Start backend:
-   cd /path/to/MAS/backend
-   python start.py
+Backend:
 
-3. Open second terminal and start frontend:
-   cd /path/to/MAS/frontend
-   node start.js
+  http://localhost:8000
 
-4. Open browser and go to: http://localhost:3000
+Backend API docs:
+
+  http://localhost:8000/docs
+
+Stopping the app
+================
+
+Press Ctrl+C in the backend terminal.
+Press Ctrl+C in the frontend terminal.
+
+Troubleshooting
+===============
+
+Problem: conda command is not found
+Solution: Restart the terminal after installing Conda, or initialize Conda for your shell.
+
+Problem: backend says the API key is missing
+Solution: Edit backend/.env and replace placeholder API keys with real values.
+
+Problem: frontend cannot connect to backend
+Solution: Confirm backend is running at http://localhost:8000 and frontend/.env.local has NEXT_PUBLIC_BACKEND_URL=http://localhost:8000.
+
+Problem: port 3000 or 8000 is already in use
+Solution: Stop the existing process or change PORT in backend/.env. If the backend port changes, update frontend/.env.local too.
+
+Problem: PostgreSQL is unavailable locally
+Solution: Use the SQLite fallback settings shown above.
+
+Problem: npm run build warns about caniuse-lite
+Solution: This is a dependency data freshness warning, not a build failure. The current build passes.
+
+Important details
+=================
+
+- Do not commit real .env secrets.
+- Training Data contains sample PDFs/images used by tests and local validation.
+- backend/local_dev.db is for local development only.
+- PDF uploads may produce multiple drawing crops; each crop can be validated separately.
+- Wall-section title extraction is preferred when a PDF sheet contains many details.
+- start.sh is available as an interactive helper, but the two-terminal workflow above is the clearest local path.

@@ -4,6 +4,7 @@ Handles user registration, login, password reset operations
 """
 
 from typing import Optional, Dict, Any
+from uuid import UUID
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from email_validator import validate_email, EmailNotValidError
@@ -240,9 +241,15 @@ class AuthenticationService:
             user_id = payload.get("sub")
             if not user_id:
                 return None
+
+            try:
+                normalized_user_id = UUID(str(user_id))
+            except (TypeError, ValueError):
+                logger.warning("Token subject is not a valid UUID: %s", user_id)
+                return None
             
             # Find user in database
-            user = db.query(User).filter(User.id == user_id).first()
+            user = db.query(User).filter(User.id == normalized_user_id).first()
             if not user or not user.is_active:
                 return None
             

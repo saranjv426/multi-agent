@@ -1,17 +1,18 @@
-import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
+import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import { Toaster } from 'react-hot-toast'
 import { AuthProvider } from '@/components/auth/AuthProvider'
-
-const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
   title: 'Roof Design Validation System',
   description: 'Automated building code compliance checking for roof designs using AI',
   keywords: 'roof design, building codes, Florida building code, compliance, validation, AI',
   authors: [{ name: 'Roof Validation Team' }],
-  viewport: 'width=device-width, initial-scale=1',
+}
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
 }
 
 export default function RootLayout({
@@ -21,7 +22,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="scroll-smooth">
-      <body className={`${inter.className} antialiased bg-gray-50 text-gray-900`}>
+      <body className="antialiased bg-gray-50 text-gray-900">
         <AuthProvider>
           {children}
           <Toaster 

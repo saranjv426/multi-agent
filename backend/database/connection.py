@@ -1,11 +1,13 @@
 """
-Database Connection Management for Railway PostgreSQL
-Handles SQLAlchemy database sessions and connection pooling
+Database connection management.
+Supports PostgreSQL in deployed environments and SQLite fallback for local development.
 """
 
 import os
 import re
+from pathlib import Path
 from sqlalchemy import create_engine, text
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import QueuePool
 from typing import Generator
@@ -17,6 +19,16 @@ logger = logging.getLogger(__name__)
 
 
 _SCHEMA_NAME_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def get_local_sqlite_url() -> str:
+    """Return the SQLite URL used for local development fallback."""
+    configured = os.getenv("LOCAL_DATABASE_URL", "").strip()
+    if configured:
+        return configured
+
+    db_path = Path(__file__).resolve().parent.parent / "local_dev.db"
+    return f"sqlite:///{db_path}"
 
 
 def validate_schema_name(schema_name: str) -> str:
@@ -51,6 +63,8 @@ class DatabaseManager:
             if self._is_postgres:
                 # Keep app objects isolated per environment while sharing one DB instance.
                 connect_args["options"] = f"-csearch_path={self.db_schema},public"
+            elif self.database_url.startswith("sqlite"):
+                connect_args["check_same_thread"] = False
 
             # Create engine with connection pooling
             self.engine = create_engine(
@@ -128,7 +142,15 @@ def get_database_manager() -> DatabaseManager:
         # Get database URL from environment
         database_url = os.getenv("DATABASE_URL")
         if not database_url:
-            raise ValueError("DATABASE_URL environment variable is required")
+            environment = os.getenv("ENVIRONMENT", "development").lower()
+            if environment == "development":
+                database_url = get_local_sqlite_url()
+                logger.warning(
+                    "DATABASE_URL not set; using local SQLite database for development: %s",
+                    database_url,
+                )
+            else:
+                raise ValueError("DATABASE_URL environment variable is required")
         
         # Railway PostgreSQL URLs sometimes need modification
         if database_url.startswith("postgres://"):
@@ -145,6 +167,25 @@ def get_db() -> Generator[Session, None, None]:
 
 def init_database():
     """Initialize database (create tables, etc.)"""
+    global db_manager
     manager = get_database_manager()
-    manager.create_tables()
-    return manager.test_connection()
+    try:
+        manager.create_tables()
+        return manager.test_connection()
+    except OperationalError as exc:
+        environment = os.getenv("ENVIRONMENT", "development").lower()
+        fallback_enabled = os.getenv("ENABLE_SQLITE_FALLBACK", "true").lower() == "true"
+
+        if environment != "development" or not fallback_enabled or not manager._is_postgres:
+            raise
+
+        fallback_url = get_local_sqlite_url()
+        logger.warning(
+            "Primary PostgreSQL database is unavailable in development; "
+            "falling back to SQLite at %s. Original error: %s",
+            fallback_url,
+            exc,
+        )
+        db_manager = DatabaseManager(fallback_url, db_schema="public")
+        db_manager.create_tables()
+        return db_manager.test_connection()

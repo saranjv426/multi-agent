@@ -237,6 +237,7 @@ class DesignParser:
         
         # Patterns for slope
         slope_patterns = [
+            r'(?:Roof_Pitch|Pitch|Slope)\s*:\s*"?(\d+)\s*[:/]\s*(\d+)"?',
             r'(\d+):(\d+)\s*(?:slope|pitch)',
             r'(\d+)/(\d+)\s*(?:slope|pitch)',
             r'(\d+\.?\d*)\s*degrees?',

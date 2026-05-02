@@ -7,6 +7,7 @@ from openai import OpenAI
 from typing import Dict, Optional, Any
 import re
 import logging
+import os
 import time
 from .openai_compat import chat_completions_create_compat
 
@@ -35,7 +36,7 @@ class BuildingCodeValidator:
         # Configuration
         self.validation_model = validation_model
         self.summary_model = summary_model
-        self.max_completion_tokens = 4000
+        self.max_completion_tokens = int(os.getenv("MAX_COMPLETION_TOKENS", "4000"))
         self.temperature = 0.1  # Low temperature for consistent code validation
         
     def validate_roof_design(self, agent1_output: str, options: Optional[Dict] = None) -> Dict[str, Any]:
@@ -198,7 +199,7 @@ STRICT VALIDATION RULES:
             
             response = self.client.responses.create(
                 model=self.validation_model,
-                max_completion_tokens=self.max_output_tokens,
+                max_completion_tokens=self.max_completion_tokens,
                 input=[
                     {
                         "role": "user",
@@ -310,7 +311,7 @@ CORRECTIONS (if NON-COMPLIANT or REQUIRES FURTHER REVIEW):
             response = chat_completions_create_compat(
                 self.client,
                 model=self.validation_model,
-                max_completion_tokens=2000,
+                max_completion_tokens=self.max_completion_tokens,
                 messages=[
                     {
                         "role": "user",
@@ -387,7 +388,7 @@ Format as a professional document suitable for official submission.
             response = chat_completions_create_compat(
                 self.client,
                 model=self.summary_model,
-                max_completion_tokens=3000,
+                max_completion_tokens=self.max_completion_tokens,
                 messages=[
                     {
                         "role": "user",

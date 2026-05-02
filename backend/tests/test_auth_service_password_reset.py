@@ -1,6 +1,7 @@
 import asyncio
 from types import SimpleNamespace
 from unittest.mock import MagicMock
+from uuid import uuid4
 
 from auth.service import AuthenticationService
 
@@ -84,3 +85,39 @@ def test_reset_password_rejects_same_as_current_password():
     assert result["success"] is False
     assert result["error"] == "New password must be different from current password"
     db.commit.assert_not_called()
+
+
+def test_get_user_by_token_normalizes_uuid_subject_before_lookup():
+    security = MagicMock()
+    user_id = uuid4()
+    security.verify_token.return_value = {"sub": str(user_id)}
+    email_service = MagicMock()
+    service = AuthenticationService(security, email_service)
+
+    user = SimpleNamespace(id=user_id, email="user@example.com", created_at=SimpleNamespace(isoformat=lambda: "2026-04-01T00:00:00"), is_active=True)
+    db = MagicMock()
+    filter_mock = db.query.return_value.filter
+    filter_mock.return_value.first.return_value = user
+
+    result = asyncio.run(service.get_user_by_token(db, "token"))
+
+    assert result == {
+        "id": str(user_id),
+        "email": "user@example.com",
+        "created_at": "2026-04-01T00:00:00",
+    }
+    passed_expression = filter_mock.call_args.args[0]
+    assert passed_expression.right.value == user_id
+
+
+def test_get_user_by_token_rejects_invalid_uuid_subject():
+    security = MagicMock()
+    security.verify_token.return_value = {"sub": "not-a-uuid"}
+    email_service = MagicMock()
+    service = AuthenticationService(security, email_service)
+    db = MagicMock()
+
+    result = asyncio.run(service.get_user_by_token(db, "token"))
+
+    assert result is None
+    db.query.assert_not_called()
