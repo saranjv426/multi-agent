@@ -5,6 +5,7 @@ Supports PostgreSQL in deployed environments and SQLite fallback for local devel
 
 import os
 import re
+import time
 from pathlib import Path
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import OperationalError
@@ -44,6 +45,19 @@ def validate_schema_name(schema_name: str) -> str:
     return normalized
 
 
+def postgres_sslmode(database_url: str) -> str:
+    """Return the SSL mode to use for PostgreSQL connections."""
+    configured = os.getenv("DB_SSLMODE", "").strip()
+    if configured:
+        return configured
+
+    # Cloud Postgres providers such as Render expect SSL. Keep local Postgres
+    # developer-friendly unless the caller explicitly opts in with DB_SSLMODE.
+    if any(host in database_url for host in ("localhost", "127.0.0.1", "::1")):
+        return "prefer"
+    return "require"
+
+
 class DatabaseManager:
     """Manages database connections and sessions"""
     
@@ -63,6 +77,7 @@ class DatabaseManager:
             if self._is_postgres:
                 # Keep app objects isolated per environment while sharing one DB instance.
                 connect_args["options"] = f"-csearch_path={self.db_schema},public"
+                connect_args["sslmode"] = postgres_sslmode(self.database_url)
             elif self.database_url.startswith("sqlite"):
                 connect_args["check_same_thread"] = False
 
@@ -74,6 +89,7 @@ class DatabaseManager:
                 max_overflow=10,
                 pool_timeout=30,
                 pool_recycle=1800,  # Recycle connections every 30 minutes
+                pool_pre_ping=True,
                 connect_args=connect_args,
                 echo=False  # Set to True for SQL debugging
             )
@@ -169,9 +185,30 @@ def init_database():
     """Initialize database (create tables, etc.)"""
     global db_manager
     manager = get_database_manager()
+    max_attempts = max(1, int(os.getenv("DB_INIT_MAX_ATTEMPTS", "5")))
+    retry_delay = max(0.0, float(os.getenv("DB_INIT_RETRY_DELAY_SECONDS", "3")))
+
     try:
-        manager.create_tables()
-        return manager.test_connection()
+        last_error = None
+        for attempt in range(1, max_attempts + 1):
+            try:
+                manager.create_tables()
+                return manager.test_connection()
+            except OperationalError as exc:
+                last_error = exc
+                if attempt >= max_attempts:
+                    raise
+                logger.warning(
+                    "Database initialization attempt %s/%s failed; retrying in %.1fs: %s",
+                    attempt,
+                    max_attempts,
+                    retry_delay,
+                    exc,
+                )
+                time.sleep(retry_delay)
+        if last_error:
+            raise last_error
+        return False
     except OperationalError as exc:
         environment = os.getenv("ENVIRONMENT", "development").lower()
         fallback_enabled = os.getenv("ENABLE_SQLITE_FALLBACK", "true").lower() == "true"

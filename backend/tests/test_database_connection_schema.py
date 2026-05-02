@@ -4,7 +4,12 @@ import pytest
 from sqlalchemy.exc import OperationalError
 
 import database.connection as connection_module
-from database.connection import DatabaseManager, get_local_sqlite_url, validate_schema_name
+from database.connection import (
+    DatabaseManager,
+    get_local_sqlite_url,
+    postgres_sslmode,
+    validate_schema_name,
+)
 
 
 def test_validate_schema_name_defaults_to_public_when_empty():
@@ -21,7 +26,25 @@ def test_validate_schema_name_rejects_invalid_identifiers():
         validate_schema_name("public;drop table users")
 
 
-def test_database_manager_sets_postgres_search_path_connect_arg():
+def test_postgres_sslmode_defaults_to_require_for_cloud_hosts(monkeypatch):
+    monkeypatch.delenv("DB_SSLMODE", raising=False)
+
+    assert postgres_sslmode("postgresql://user:pass@db.render.com:5432/app") == "require"
+
+
+def test_postgres_sslmode_defaults_to_prefer_for_local_hosts(monkeypatch):
+    monkeypatch.delenv("DB_SSLMODE", raising=False)
+
+    assert postgres_sslmode("postgresql://user:pass@localhost:5432/app") == "prefer"
+
+
+def test_postgres_sslmode_can_be_overridden(monkeypatch):
+    monkeypatch.setenv("DB_SSLMODE", "verify-full")
+
+    assert postgres_sslmode("postgresql://user:pass@db.render.com:5432/app") == "verify-full"
+
+
+def test_database_manager_sets_postgres_search_path_and_ssl_connect_args():
     with patch("database.connection.create_engine") as mock_create_engine, patch(
         "database.connection.sessionmaker"
     ) as mock_sessionmaker:
@@ -33,6 +56,8 @@ def test_database_manager_sets_postgres_search_path_connect_arg():
         assert mock_create_engine.call_count == 1
         kwargs = mock_create_engine.call_args.kwargs
         assert kwargs["connect_args"]["options"] == "-csearch_path=dev,public"
+        assert kwargs["connect_args"]["sslmode"] == "require"
+        assert kwargs["pool_pre_ping"] is True
 
 
 def test_database_manager_uses_empty_connect_args_for_non_postgres_url():
