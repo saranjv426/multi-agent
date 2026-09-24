@@ -6,7 +6,9 @@ from sqlalchemy.exc import OperationalError
 import database.connection as connection_module
 from database.connection import (
     DatabaseManager,
+    describe_database_url,
     get_local_sqlite_url,
+    is_render_external_postgres_url,
     postgres_sslmode,
     validate_schema_name,
 )
@@ -42,6 +44,20 @@ def test_postgres_sslmode_can_be_overridden(monkeypatch):
     monkeypatch.setenv("DB_SSLMODE", "verify-full")
 
     assert postgres_sslmode("postgresql://user:pass@db.render.com:5432/app") == "verify-full"
+
+
+def test_describe_database_url_redacts_credentials():
+    summary = describe_database_url("postgresql://user:secret@host.example.com:5432/app_db")
+
+    assert summary == "postgresql://host.example.com:5432/app_db"
+    assert "secret" not in summary
+
+
+def test_is_render_external_postgres_url_detects_public_render_host():
+    assert is_render_external_postgres_url(
+        "postgresql://user:pass@dpg-example-a.oregon-postgres.render.com:5432/app"
+    )
+    assert not is_render_external_postgres_url("postgresql://user:pass@dpg-example-a:5432/app")
 
 
 def test_database_manager_sets_postgres_search_path_and_ssl_connect_args():

@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.testclient import TestClient
 
-from cors_config import parse_allowed_origins
+from cors_config import parse_allowed_origin_regex, parse_allowed_origins
 
 
 def test_parse_allowed_origins_accepts_explicit_allowlist():
@@ -29,6 +29,20 @@ def test_parse_allowed_origins_rejects_wildcard_like_patterns():
         assert False, "Expected ValueError for wildcard-like origin"
     except ValueError as exc:
         assert "cannot contain wildcard entries" in str(exc)
+
+
+def test_parse_allowed_origin_regex_accepts_preview_pattern():
+    regex = parse_allowed_origin_regex(r"https://multi-agent-system-[a-z0-9-]+-nnawaris-projects\.vercel\.app")
+
+    assert regex == r"https://multi-agent-system-[a-z0-9-]+-nnawaris-projects\.vercel\.app"
+
+
+def test_parse_allowed_origin_regex_rejects_allow_all_pattern():
+    try:
+        parse_allowed_origin_regex(".*")
+        assert False, "Expected ValueError for allow-all regex"
+    except ValueError as exc:
+        assert "cannot allow every origin" in str(exc)
 
 
 def _build_test_app():

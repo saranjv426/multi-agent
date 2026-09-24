@@ -7,7 +7,7 @@ import os
 from typing import Optional
 from dataclasses import dataclass
 from dotenv import load_dotenv
-from cors_config import parse_allowed_origins
+from cors_config import parse_allowed_origin_regex, parse_allowed_origins
 
 # Load environment variables from .env file
 load_dotenv()
@@ -30,6 +30,7 @@ class Config:
     debug: bool = True
     environment: str = "development"
     allowed_origins: list = None
+    allowed_origin_regex: Optional[str] = None
     track_api_costs: bool = True
     log_level: str = "INFO"
     frontend_url: str = "http://localhost:3000"
@@ -117,6 +118,7 @@ def get_config() -> Config:
     # Wildcards are forbidden because CORS credentials are enabled.
     origins_str = os.getenv("ALLOWED_ORIGINS", "")
     config.allowed_origins = parse_allowed_origins(origins_str)
+    config.allowed_origin_regex = parse_allowed_origin_regex(os.getenv("ALLOWED_ORIGIN_REGEX", ""))
     
     return config
 

@@ -3,6 +3,7 @@ CORS configuration helpers.
 Enforces explicit origin allowlists when credentials are enabled.
 """
 
+import re
 from typing import List, Optional
 
 
@@ -34,3 +35,19 @@ def parse_allowed_origins(origins_str: Optional[str]) -> List[str]:
         )
 
     return origins
+
+
+def parse_allowed_origin_regex(regex_str: Optional[str]) -> Optional[str]:
+    """
+    Parse and validate optional ALLOWED_ORIGIN_REGEX.
+
+    This is useful for provider preview URLs such as Vercel deployments while
+    still avoiding a blanket '*' CORS policy with credentials enabled.
+    """
+    regex = (regex_str or "").strip()
+    if not regex:
+        return None
+    if regex == ".*":
+        raise ValueError("ALLOWED_ORIGIN_REGEX cannot allow every origin")
+    re.compile(regex)
+    return regex

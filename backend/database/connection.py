@@ -7,6 +7,7 @@ import os
 import re
 import time
 from pathlib import Path
+from urllib.parse import urlparse
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import sessionmaker, Session
@@ -58,6 +59,21 @@ def postgres_sslmode(database_url: str) -> str:
     return "require"
 
 
+def describe_database_url(database_url: str) -> str:
+    """Return a safe database URL summary for logs."""
+    parsed = urlparse(database_url)
+    host = parsed.hostname or "unknown-host"
+    port = parsed.port or 5432
+    database = parsed.path.lstrip("/") or "unknown-db"
+    return f"{parsed.scheme}://{host}:{port}/{database}"
+
+
+def is_render_external_postgres_url(database_url: str) -> bool:
+    """Detect Render's public Postgres hostnames."""
+    host = urlparse(database_url).hostname or ""
+    return host.endswith("-postgres.render.com")
+
+
 class DatabaseManager:
     """Manages database connections and sessions"""
     
@@ -78,6 +94,21 @@ class DatabaseManager:
                 # Keep app objects isolated per environment while sharing one DB instance.
                 connect_args["options"] = f"-csearch_path={self.db_schema},public"
                 connect_args["sslmode"] = postgres_sslmode(self.database_url)
+                logger.info(
+                    "PostgreSQL target: %s, schema=%s, sslmode=%s",
+                    describe_database_url(self.database_url),
+                    self.db_schema,
+                    connect_args["sslmode"],
+                )
+                if (
+                    os.getenv("ENVIRONMENT", "development").lower() == "production"
+                    and is_render_external_postgres_url(self.database_url)
+                ):
+                    logger.warning(
+                        "DATABASE_URL appears to use Render's external Postgres host. "
+                        "For a Render web service in the same account and region as the database, "
+                        "use the Internal Database URL instead."
+                    )
             elif self.database_url.startswith("sqlite"):
                 connect_args["check_same_thread"] = False
 
